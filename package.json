@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import-tgrp": "node scripts/import-tgrp.ts",
+    "test-tdrg": "node scripts/test-tdrg.ts"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.13",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"

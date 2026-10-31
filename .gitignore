@@ -33,6 +33,16 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# PGlite data (rebuild with: node scripts/import-tgrp.ts)
+/data/
+
+# TGrp6305 binaries and TDRG 6.3.3 tables
+/grouper/
+
+# playwright-cli snapshots
+/.playwright-cli/
+/seeker.yml
+
 # vercel
 .vercel
 

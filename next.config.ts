@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // PGlite loads its wasm/data files from node_modules at runtime
+  serverExternalPackages: ["@electric-sql/pglite"],
   experimental: {
     agentFeedback: true,
   },
