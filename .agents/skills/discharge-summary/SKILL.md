@@ -41,57 +41,19 @@ A code argument returns its official name and TGrp attributes (MDC, PDC, CC, val
 
 ## Output format
 
-Show the result in the reply, in the standard form below. Do not write it to a file unless the user asks for one. The result is a draft for the physician and coder to review and confirm, so the missing signature is expected: leave the signature line blank and do not raise it as an alert or a query. Two parts, always in this order.
+Show the result in the reply, in the standard form ([assets/form.md](assets/form.md)). Do not write it to a file unless the user asks for one. The result is a draft for the physician and coder to review and confirm, so the missing signature is expected: leave the signature line blank and do not raise it as an alert or a query. Two parts, always in this order.
 
 **Part 1 is the standard discharge summary form** (fields from `docs/discharge-summary.md` section 2, clinical summary per MRA criterion 6). Fill it from the chart. Write diagnoses and procedures as full terms, with no abbreviations (MRA 5). Put the proposed code beside each one. Write "ไม่มี" for an empty field, and "รอแพทย์ยืนยัน" for an item that depends on a query in Part 2. Never invent a signature, a licence number or an OR time.
 
 **Part 2 is the coding and DRG proposal** for the approver. It is where every code is checked and every decision is raised.
 
-```
-## ส่วนที่ 1 แบบสรุปการรักษาผู้ป่วยใน (Discharge Summary) — ร่าง
-| โรงพยาบาล | … | HN / AN | … |
-| ชื่อ–สกุล | … | เพศ / อายุ | … |
-| วันเวลารับไว้ | … | วันเวลาจำหน่าย | … |
-| วันนอน (LOS) | … | หอผู้ป่วย / แผนก | … |
-| สิทธิการรักษา | … | แพทย์ผู้รักษา | … |
+**The form is fixed: [assets/form.md](assets/form.md).** Every case, from every user, comes out in exactly that form, so results can be compared side by side. Copy it and replace each `…` with the case data:
 
-| ประเภท | การวินิจฉัย (ศัพท์เต็ม) | ICD-10 |
-|---|---|---|
-| Principal diagnosis | … | … |
-| Comorbidity | … | … |
-| Complication | … | … |
-| Other diagnosis | … | … |
-| External cause | … | … |
-
-| Operating room procedure | วันเวลาเริ่ม–สิ้นสุด | ICD-9-CM |
-| Non-OR procedure | วันที่ | ICD-9-CM |
-
-**Clinical summary**
-1. ปัญหาแรกรับ / การวินิจฉัยเมื่อสิ้นสุดการรักษา: …
-2. Investigation ที่สำคัญ: …
-3. การรักษาและผลการรักษา: …
-4. แผนการรักษา ฟื้นฟู และสร้างเสริมสุขภาพหลังจำหน่าย: …
-5. Home medication: …
-
-| Discharge status | … | Discharge type | … (transfer → ชื่อสถานพยาบาลปลายทาง) |
-| สาเหตุการตาย | … (ไม่เสียชีวิต → "ไม่มี") |
-| แพทย์ผู้สรุป | ลงนาม ……… ชื่อ–สกุล ……… ว. ……… วันที่ ……… |
-
-## ส่วนที่ 2 ข้อเสนอการให้รหัสและ DRG
-### ตรวจสอบรหัส
-| บทบาท | dx_text (แพทย์) | รหัส | dx_name | สอดคล้อง | หลักฐาน |
-(then a short list: ไม่เสนอให้ลงรหัส … with the reason for each)
-
-### Alerts
-🔴 … / 🟠 … / 🔵 …
-
-### ข้อเสนอ DRG
-| แบบ | DRG | PCL | AdjRW | บาท |
-(LOS, discharge type and baht per AdjRW used; the proposed coding in bold)
-
-### คำถามถึงแพทย์ / สิ่งที่ต้องอนุมัติ
-1. …
-```
+- Keep every heading, table, column and row label, in the same order and wording. Add no sections, notes or prose before, between or after them.
+- Every row in the form stays, even when empty: write "ไม่มี" in its cells. A Part 2 table with nothing to report keeps one row reading "ไม่มี".
+- More than one item of a kind → repeat the row with the same label (e.g. one `Comorbidity` row per comorbidity; one `SDx` row per secondary code in 2.1; one row per variant in 2.4, the proposed one first and in bold).
+- `สถานพยาบาลที่ส่งต่อ` and `สาเหตุการตาย` are "ไม่มี" unless the case was transferred or died.
+- Lists inside a cell (labs, medications) are separated with `; ` so the table stays one line per row.
 
 Keep explanations short and in Thai unless the user writes in English; codes and official names stay in English.
 
