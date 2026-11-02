@@ -35,7 +35,7 @@ Walk through the path that produced the DRG, in this order. Each step can change
 6. **AdjRW** from LOS: under 24 h → RW0d; LOS < WtLOS/3 → reduced; above OT → increased (formula in `references/tdrg-rules.md`).
 7. **Money.** Payment ≈ AdjRW × base rate. NHSO used 8,350 baht per AdjRW for in-zone IP in 2567–2569; say which rate you assume.
 
-For "what if" questions, run the original and each variant in one call and show a table of DRG / PCL / AdjRW / baht. Keep the clinical honesty point in view: an added code only counts if the chart supports it, and the NHSO AI-audit removes unsupported codes (see the `discharge-summary` skill).
+For "what if" questions, run the original and each variant in one call and show a table of DRG / PCL / AdjRW / baht. Run only the variants the user names or the chart supports; do not hunt for codes, PDx swaps or procedure combinations that raise the RW, and do not rank variants by payment. When a variant adds a code, say in the same line that it counts only if the chart documents it, and that the NHSO AI-audit removes unsupported codes and claws back with penalties (see "No RW optimisation" in the `discharge-summary` skill).
 
 ## When the result looks wrong
 

@@ -18,8 +18,26 @@ Background reading in this repo, open only when you need the detail:
 3. **Suggest codes.** For each dx text propose a code. Prefer combined codes, avoid ambiguous ones (I64, T07, T14.1), use † as PDx with the * code as SDx, and keep the physician's specificity — never more specific than the text supports.
 4. **Verify every code against its official name.** Run the lookup script (below) to get `dx_name`, validity, PDx acceptability and sex/age limits from the TGrp tables, then compare dx_text with dx_name on laterality, acute/chronic, type, site, organism, complication ("with hemorrhage"), behaviour (malignant/secondary/in situ), open/closed, pregnancy/newborn context. Rate each: ✅ Exact · 🔵 Less specific · 🟠 More specific · 🟠 Partial · 🔴 Mismatch · ❓ Ambiguous. A code you remember but cannot find in the table is not a suggestion — say so.
 5. **Check rules and evidence.** Hard stops, warnings and suggestions (see "Alerts"). For each diagnosis, point to the evidence that supports it, or say none was given.
-6. **Group the case.** Use the `thai-drg` skill to run the proposed coding, plus one variant for each open query that changes the grouping. Report DRG / PCL / AdjRW / baht for each. Present this as information, not as the reason to add a code.
+6. **Group the case.** Use the `thai-drg` skill to run the proposed coding, plus one variant for each open query that changes the grouping. Report DRG / PCL / AdjRW / baht for each. The DRG is the result of the coding, never its goal (see "No RW optimisation").
 7. **Fill the standard form, then the DRG proposal.** Write the result as the discharge summary form first (Part 1), then the coding and DRG proposal (Part 2). Do not present the result as final coding.
+8. **Humanize the prose.** Run the `humanizer` skill in embedded mode on the free-text cells only (see "Humanizer scope"), then put the rewritten text back into the same cells. The project enables it in `.claude/settings.json` (needs Claude Code 2.1.142 or newer); if it is not available, skip this step and say so in one line.
+
+## Humanizer scope
+
+The form is fixed and the codes are data, so humanizer edits only these cells: Clinical summary items 1–5 (the text after each label), 2.2 `เหตุผล`, 2.3 `รายละเอียด`, and 2.5 `คำถาม` and `ผลต่อรหัส / DRG`.
+
+It never touches headings, column and row labels, the bold labels in Clinical summary, alert emojis, codes, `dx_name`, quoted `dx_text`, numbers, lab values, drug doses, dates or date ranges ("12–15 ต.ค."), or "ไม่มี" / "รอแพทย์ยืนยัน". The form's own dashes (`ชื่อ–สกุล`, `— ร่าง`) stay; the no-dash rule (§8) applies only inside the cells above. It must not add or drop a fact, and medical terms stay as written (MRA 5).
+
+## No RW optimisation
+
+The proposal must describe the case as the chart shows it. A higher RW is never a reason to add, keep, sequence or ask about a code, and a lower RW is never a reason to drop one.
+
+- Code A is proposed only when the chart supports it today. A code that would need the physician to write something new is a query, not part of A.
+- Pick the PDx and its sequence by the coding guidelines alone. When two conditions meet the PDx definition equally, follow the guideline and the physician's choice, and say which rule decided it, not which gives more RW.
+- Under-coding and over-coding get the same evidence bar. A 🔵 suggestion needs a condition the chart shows was treated or investigated; an RW gain alone is not evidence.
+- Make a variant in 2.4 only for a real gap in the chart (e.g. CAUTI documented by nursing but not by the physician), and include variants that lower the RW, such as removing a code that lacks evidence. Never search for codes or combinations that would raise the PCL.
+- Queries in 2.5 are non-leading: ask what the chart leaves unclear, offer clinically reasonable options including "other" and "cannot be determined", and never mention RW, DRG or money in the question itself. The effect goes only in `ผลต่อรหัส / DRG`, stated neutrally (both directions, no "ควรเพิ่ม").
+- Never word a result as a way to earn more ("ได้เพิ่ม", "ควรใส่เพื่อ", "เพิ่ม RW ได้"). If the user asks for that, explain that coding to raise payment without evidence is a false claim (NHSO 2566, clause 12) and give the evidence-based coding instead.
 
 ## Lookup script
 
@@ -37,7 +55,7 @@ A code argument returns its official name and TGrp attributes (MDC, PDC, CC, val
 |---|---|---|
 | 🔴 Hard stop | cannot be submitted as is | no PDx; PDx not acceptable (A2) or invalid/header code; PDx conflicts with sex or age; newborn < 28 days without weight; dx_text ↔ dx_name mismatch; transfer without destination |
 | 🟠 Warning | answer before signing | NHSO AI-audit conditions (D62 without transfusion, J96.0 without ventilator, R18 without paracentesis, N18.9 unstaged, N17 on CKD 5, symptom codes with their cause, duplicate GI-bleed codes, IVUS 00.2 in a community hospital, PCI without vessel count…); diagnosis without supporting evidence (sepsis with negative hemoculture, pneumonia without a CXR report, respiratory failure without ABG/SpO₂ and ventilation); injury without external cause; code more specific than the text |
-| 🔵 Suggestion | possibly under-coded | evidence of a treated condition not in the summary (Hb drop + PRC, Cr rise ≥ 0.3 in 48 h, intubation without 96.7x hours, OR procedure without date/time) |
+| 🔵 Suggestion | possibly under-coded (evidence first, never RW) | evidence of a treated condition not in the summary (Hb drop + PRC, Cr rise ≥ 0.3 in 48 h, intubation without 96.7x hours, OR procedure without date/time) |
 
 ## Output format
 
