@@ -418,14 +418,18 @@ export default function Summary({ patient: p, notes, draft, names }: {
                         </td>
                         <td className={`${td} text-xs text-slate-500`}>{r.detail}</td>
                         <td className={td}>
-                          <span className={`inline-flex rounded-lg px-2.5 py-1 font-mono text-lg font-bold text-white ${g?.err ? "bg-rose-600" : "bg-emerald-600"}`}>
+                          <span className={`inline-flex rounded-lg px-2.5 py-1 font-mono text-lg font-bold ${g?.err ? "bg-rose-600 text-white" : "bg-yellow-400 text-yellow-950"}`}>
                             {g?.drg ?? "…"}
                           </span>
                           {g?.err ? <span className="ml-1"><Chip tone="rose">error {g.err}</Chip></span> : null}
                           <div className="mt-1 text-xs text-slate-500">{g && drgNames[g.drg]}</div>
                         </td>
                         <td className={`${td} font-mono`}>{g?.rw.toFixed(4) ?? "…"}</td>
-                        <td className={`${td} font-mono text-lg font-bold text-slate-900 dark:text-slate-50`}>{g?.adjrw.toFixed(4) ?? "…"}</td>
+                        <td className={td}>
+                          <span className="inline-flex rounded-lg bg-emerald-600 px-2.5 py-1 font-mono text-lg font-bold text-white">
+                            {g?.adjrw.toFixed(4) ?? "…"}
+                          </span>
+                        </td>
                         <td className={td}>
                           {i > 0 && g && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
@@ -435,7 +439,7 @@ export default function Summary({ patient: p, notes, draft, names }: {
                           )}
                         </td>
                         <td className={td}>
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 font-mono text-lg font-bold whitespace-nowrap text-amber-900 ring-1 ring-amber-300 ring-inset dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-500/30">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-100 px-2.5 py-1 font-mono text-lg font-bold whitespace-nowrap text-indigo-900 ring-1 ring-indigo-300 ring-inset dark:bg-indigo-500/15 dark:text-indigo-200 dark:ring-indigo-500/30">
                             <Wallet className="size-4" />
                             {g ? Math.round(g.adjrw * BAHT_PER_ADJRW).toLocaleString("th-TH") : "…"}
                           </span>
