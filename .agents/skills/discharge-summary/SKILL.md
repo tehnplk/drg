@@ -41,9 +41,9 @@ A code argument returns its official name and TGrp attributes (MDC, PDC, CC, val
 
 ## Output format
 
-Show the result in the reply, in the standard form ([assets/form.md](assets/form.md)). Do not write it to a file unless the user asks for one. The result is a draft for the physician and coder to review and confirm, so the missing signature is expected: leave the signature line blank and do not raise it as an alert or a query. Two parts, always in this order.
+Show the result in the reply, in the standard form ([assets/form.md](assets/form.md)). Do not write it to a file unless the user asks for one. The result is a draft for the physician and coder to review and confirm, so the missing signature and coder names are expected: leave those lines blank and do not raise them as an alert or a query. Two parts, always in this order.
 
-**Part 1 is the standard discharge summary form** (fields from `docs/discharge-summary.md` section 2, clinical summary per MRA criterion 6). Fill it from the chart. Write diagnoses and procedures as full terms, with no abbreviations (MRA 5). Put the proposed code beside each one. Write "ไม่มี" for an empty field, and "รอแพทย์ยืนยัน" for an item that depends on a query in Part 2. Never invent a signature, a licence number or an OR time.
+**Part 1 is the standard discharge summary form** (fields from `docs/discharge-summary.md` section 2, clinical summary per MRA criterion 6). Fill it from the chart. Write diagnoses and procedures as full terms, with no abbreviations (MRA 5). Put the proposed code beside each one. Write "ไม่มี" for an empty field, and "รอแพทย์ยืนยัน" for an item that depends on a query in Part 2. Never invent a signature, a licence number, a coder's name or an OR time. Take leave days from the chart; they shorten the LOS the grouper uses (MRA Others 6).
 
 **Part 2 is the coding and DRG proposal** for the approver. It is where every code is checked and every decision is raised.
 
