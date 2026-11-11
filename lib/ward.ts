@@ -78,7 +78,9 @@ export type Draft = {
 
 export const BAHT_PER_ADJRW = 8350; // NHSO UC in-zone IP rate, fiscal 2569
 
-export type Coded = { code: string; role: Role };
+export const MAX_SDX = 12; // the grouper takes no more; the API rejects the whole batch above it
+
+export type Coded ={ code: string; role: Role };
 
 // Codes a variant adds take their role from the code itself: ICD-9-CM is numeric, external causes are V–Y.
 const roleOf = (code: string): Role => (/^\d/.test(code) ? "proc" : /^[V-Y]/.test(code) ? "ext" : "sdx");
@@ -116,7 +118,7 @@ export function toCase(p: Patient, coded: Coded[], an: string) {
     los_day: losDays(p),
     discht: p.discharge_type,
     pdx: of("pdx")[0] ?? "",
-    sdx: of("sdx"),
+    sdx: of("sdx").slice(0, MAX_SDX),
     proc: of("proc"),
   };
 }

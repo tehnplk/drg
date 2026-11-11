@@ -10,7 +10,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  BAHT_PER_ADJRW, DISCHARGE_TYPES, LINE_ROLES, ageText, applyChange, fmtDate, losDays, toCase,
+  BAHT_PER_ADJRW, DISCHARGE_TYPES, LINE_ROLES, MAX_SDX, ageText, applyChange, fmtDate, losDays, toCase,
   type Change, type Coded, type Draft, type LineType, type Note, type Patient, type Status,
 } from "@/lib/ward.ts";
 import { Chip, IconTile, PatientAvatar, SectionCard, SubHeading, TONES, card, wardTone, type Tone } from "../ui.tsx";
@@ -125,7 +125,7 @@ export default function Summary({ patient: p, notes, draft, names }: {
 
   const [result, setResult] = useState<{ key: string; data: Grouped[] } | null>(null);
   const [error, setError] = useState("");
-  const [drgNames, setDrgNames] = useState<Record<string, string>>({});
+  const [labels, setLabels] = useState<Record<string, string>>({}); // /api/libs path -> text
 
   useEffect(() => {
     let live = true;
@@ -149,13 +149,14 @@ export default function Summary({ patient: p, notes, draft, names }: {
   }, [key]);
 
   useEffect(() => {
-    const missing = [...new Set(result?.data.map((g) => g.drg))].filter((d) => !(d in drgNames));
+    const paths = (result?.data ?? []).flatMap((g) => [`drg-name/${g.drg}`, ...(g.warn ? [`drg-warning/${g.warn}`] : [])]);
+    const missing = [...new Set(paths)].filter((p) => !(p in labels));
     if (!missing.length) return;
-    Promise.all(missing.map(async (d) => {
-      const json = await (await fetch(`/api/libs/drg-name/${d}`)).json();
-      return [d, json.rows?.[0]?.drgname ?? ""] as const;
-    })).then((pairs) => setDrgNames((n) => ({ ...n, ...Object.fromEntries(pairs) })));
-  }, [result, drgNames]);
+    Promise.all(missing.map(async (p) => {
+      const rows: { drgname?: string; name?: string }[] = (await (await fetch(`/api/libs/${p}`)).json()).rows ?? [];
+      return [p, rows.map((r) => r.drgname ?? r.name).join(", ")] as const;
+    })).then((pairs) => setLabels((n) => ({ ...n, ...Object.fromEntries(pairs) })));
+  }, [result, labels]);
 
   const decided = Object.values(decision);
   const counts = { accept: decided.filter((d) => d === "accept").length, reject: decided.filter((d) => d === "reject").length };
@@ -422,7 +423,17 @@ export default function Summary({ patient: p, notes, draft, names }: {
                             {g?.drg ?? "…"}
                           </span>
                           {g?.err ? <span className="ml-1"><Chip tone="rose">error {g.err}</Chip></span> : null}
-                          <div className="mt-1 text-xs text-slate-500">{g && drgNames[g.drg]}</div>
+                          <div className="mt-1 text-xs text-slate-500">{g && labels[`drg-name/${g.drg}`]}</div>
+                          {g?.warn ? (
+                            <p className="mt-1 flex gap-1 text-xs text-amber-700 dark:text-amber-400">
+                              <TriangleAlert className="size-3.5 shrink-0" /> Warning {g.warn}: {labels[`drg-warning/${g.warn}`]} (grouper ตัดรหัสนั้นออก)
+                            </p>
+                          ) : null}
+                          {r.coded.filter((c) => c.role === "sdx").length > MAX_SDX && (
+                            <p className="mt-1 flex gap-1 text-xs text-amber-700 dark:text-amber-400">
+                              <TriangleAlert className="size-3.5 shrink-0" /> SDx เกิน {MAX_SDX} รหัส คำนวณจาก {MAX_SDX} รหัสแรก
+                            </p>
+                          )}
                         </td>
                         <td className={`${td} font-mono`}>{g?.rw.toFixed(4) ?? "…"}</td>
                         <td className={td}>
@@ -439,7 +450,8 @@ export default function Summary({ patient: p, notes, draft, names }: {
                           )}
                         </td>
                         <td className={td}>
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-100 px-2.5 py-1 font-mono text-lg font-bold whitespace-nowrap text-indigo-900 ring-1 ring-indigo-300 ring-inset dark:bg-indigo-500/15 dark:text-indigo-200 dark:ring-indigo-500/30">
+                          {/* the big badge marks the draft and the confirmed result only: a what-if row is not an amount to aim for */}
+                          <span className={`inline-flex items-center gap-1.5 font-mono whitespace-nowrap ${r.kind === "variant" ? "text-slate-600 dark:text-slate-400" : "rounded-lg bg-indigo-100 px-2.5 py-1 text-lg font-bold text-indigo-900 ring-1 ring-indigo-300 ring-inset dark:bg-indigo-500/15 dark:text-indigo-200 dark:ring-indigo-500/30"}`}>
                             <Wallet className="size-4" />
                             {g ? Math.round(g.adjrw * BAHT_PER_ADJRW).toLocaleString("th-TH") : "…"}
                           </span>
