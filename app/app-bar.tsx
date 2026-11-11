@@ -40,7 +40,7 @@ export default function AppBar() {
             <ClipboardPlus className="size-5" />
           </span>
           <span className="leading-tight">
-            <span className="block text-lg font-bold text-slate-900 dark:text-slate-50">Chart Sense <span className="text-indigo-600 dark:text-indigo-400">PLK</span></span>
+            <span className="block text-lg font-bold text-slate-900 dark:text-slate-50"><span className="text-indigo-600 dark:text-indigo-400">PLK</span> Chart AI</span>
             <span className="hidden text-xs text-slate-500 sm:block">สรุปเวชระเบียน ให้รหัส และ Thai DRG</span>
           </span>
         </Link>

@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Chart Sense PLK", template: "%s · Chart Sense PLK" },
+  title: { default: "PLK Chart AI", template: "%s · PLK Chart AI" },
   description: "สรุปเวชระเบียนผู้ป่วยใน ตรวจรหัส ICD-10-TM / ICD-9-CM และคำนวณ Thai DRG 6.3 ในเครื่อง",
 };
 
