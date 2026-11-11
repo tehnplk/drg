@@ -155,7 +155,7 @@ export default function Home() {
 
   return (
     <main className="mx-auto w-full max-w-4xl p-4 sm:p-8">
-      <h1 className="text-2xl font-bold">DRG Seeker</h1>
+      <h1 className="text-2xl font-bold">คำนวณ DRG</h1>
       <p className="mb-6 text-sm text-zinc-500">
         คำนวณ DRG / RW ด้วย Thai DRG 6.3 (TGrp6305) ในเครื่อง
       </p>

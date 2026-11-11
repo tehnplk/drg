@@ -8,15 +8,19 @@
     "start": "next start",
     "lint": "eslint",
     "import-tgrp": "node scripts/import-tgrp.ts",
-    "test-tdrg": "node scripts/test-tdrg.ts"
+    "test-tdrg": "node scripts/test-tdrg.ts",
+    "seed-ward": "node scripts/seed-ward.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",
+    "lucide-react": "^0.511.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

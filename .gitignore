@@ -39,6 +39,10 @@ yarn-error.log*
 # TGrp6305 binaries and TDRG 6.3.3 tables
 /grouper/
 
+# playwright test output
+/test-results/
+/playwright-report/
+
 # playwright-cli snapshots
 /.playwright-cli/
 /seeker.yml
