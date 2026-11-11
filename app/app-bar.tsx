@@ -1,6 +1,6 @@
 "use client";
 
-import { BedDouble, Calculator, HeartPulse } from "lucide-react";
+import { BedDouble, Calculator, ClipboardPlus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
@@ -37,7 +37,7 @@ export default function AppBar() {
       <div className="mx-auto flex h-16 w-full max-w-[96rem] items-center gap-4 px-4 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5">
           <span className="grid size-9 place-items-center rounded-xl bg-indigo-600 text-white">
-            <HeartPulse className="size-5" />
+            <ClipboardPlus className="size-5" />
           </span>
           <span className="leading-tight">
             <span className="block text-lg font-bold text-slate-900 dark:text-slate-50">Chart Sense <span className="text-indigo-600 dark:text-indigo-400">PLK</span></span>
