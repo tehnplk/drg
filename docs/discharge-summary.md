@@ -122,11 +122,10 @@
 
 ### 5.1 การติดเชื้อ / Sepsis
 
-- **ทราบอวัยวะที่ติดเชื้อ** (pneumonia, pyelonephritis, cholecystitis): ให้การติดเชื้อของอวัยวะเป็น PDx และ sepsis เป็นโรคร่วม **เฉพาะเมื่อ hemoculture positive**
-- **hemoculture ไม่ขึ้น** แม้เพาะเชื้อจากแหล่งติดเชื้อขึ้น ไม่ควรวินิจฉัย sepsis เป็นโรคร่วม ยกเว้นผู้ป่วยภูมิคุ้มกันต่ำ (ตับแข็ง, เบาหวานคุมไม่ได้, neutropenia, หลังตัดม้าม, AIDS)
+- **ทราบอวัยวะที่ติดเชื้อ** (pneumonia, pyelonephritis, cholecystitis): ให้การติดเชื้อของอวัยวะเป็น PDx และ sepsis เป็นโรคร่วมเมื่อมีหลักฐานเข้าเกณฑ์ (เอกสารสอนปี 2563 เน้นว่า hemoculture ควร positive หากจะลง sepsis เป็นโรคร่วม ยกเว้นกลุ่มภูมิคุ้มกันต่ำ เช่น ตับแข็ง เบาหวานคุมไม่ได้ neutropenia หลังตัดม้าม AIDS — แต่ในทางคลินิกปัจจุบันมี culture-negative sepsis ที่รุนแรงได้ จึงควรบันทึกแหล่งติดเชื้อ, organ dysfunction/SOFA และหลักฐานการรักษาให้ครบ และตรวจเทียบกับเกณฑ์ audit ฉบับปัจจุบันของกองทุน)
 - **วินิจฉัย sepsis แรกรับ แต่ให้ยา 1–2 วันแล้วไข้ลงและกลับบ้าน:** เมื่อจำหน่ายควรสรุปเป็น fever, unspecified
-- **เกณฑ์ sepsis:** SIRS ≥ 2/4 (T > 38 หรือ < 36 °C, HR > 90, RR > 24 หรือ PaCO₂ < 32, WBC > 12,000 หรือ < 4,000 หรือ band > 10%) + มีแหล่งติดเชื้อหรือ hemoculture positive + ได้ยาปฏิชีวนะในระยะเวลาที่เหมาะสม (เช่น 5–7 วัน)
-- **Severe sepsis (R65.1):** sepsis + organ dysfunction ≥ 2 ระบบ เมื่อให้ R65.1 แล้วไม่ต้องสรุป MOD แยกรายระบบ ยกเว้นเข้าเกณฑ์ organ failure
+- **เกณฑ์ sepsis:** เวชปฏิบัติปัจจุบันใช้ **Sepsis-3** (สงสัย/ยืนยันการติดเชื้อร่วมกับ organ dysfunction ที่ SOFA score เพิ่มขึ้น ≥ 2 คะแนน) ส่วนเอกสารสอนปี 2563 และเกณฑ์ audit เก่าบางแห่งยังอ้างอิง **SIRS ≥ 2/4** (T > 38 หรือ < 36 °C, HR > 90, RR > 24 หรือ PaCO₂ < 32, WBC > 12,000 หรือ < 4,000 หรือ band > 10%) + แหล่งติดเชื้อหรือ hemoculture positive + ได้ยาปฏิชีวนะในระยะเวลาที่เหมาะสม (เช่น 5–7 วัน) จึงควรบันทึกทั้ง vital signs, labs และ organ dysfunction ให้ชัด
+- **Severe sepsis (R65.1):** sepsis + organ dysfunction ≥ 2 ระบบ (หมายเหตุ: คำว่า "severe sepsis" ถูกยกเลิกในนิยาม Sepsis-3 แต่รหัส R65.1 ยังมีอยู่ใน ICD-10-TM) เมื่อให้ R65.1 แล้วไม่ต้องสรุป MOD แยกรายระบบ ยกเว้นเข้าเกณฑ์ organ failure
 - **Septic shock:** sepsis + SBP < 90 (หรือลดลง > 40) นาน ≥ 1 ชม. หลังให้สารน้ำพอ หรือต้องใช้ vasopressor + poor tissue perfusion
 - **ไม่ต้องสรุป:** SIRS (R65.0) เมื่อให้รหัส sepsis แล้ว, metabolic acidosis ที่เป็นอาการของ sepsis/shock/DKA/diarrhea/ไตวาย
 - **ทราบเชื้อ** ให้ระบุชื่อเชื้อ เพราะมีรหัสเฉพาะ
@@ -136,7 +135,7 @@
 - **Pneumonia:** มี new infiltration + acute onset < 2 สัปดาห์ + อาการ ≥ 3/5 (ไข้ > 38.5, ไอมีเสมหะ, หอบ, pleuritic pain, crepitation/consolidation) และ **ต้องมีบันทึกผลอ่าน CXR** ถ้าไม่มี CXR อาจได้เพียง bronchitis
 - ระบุเชื้อเมื่อมีหลักฐาน (gram stain จาก true sputum หรือผลเพาะเชื้อ) ถ้าเพาะเชื้อขึ้นหลายชนิด แพทย์ต้องระบุว่าเชื้อใดเป็นสาเหตุจริง ไม่ใช่ colonization ถ้าไม่ทราบเชื้อให้ระบุตำแหน่งหรือชนิด (lobar, broncho, aspiration)
 - **COPD:** ผู้ป่วยเก่าต้องมีหลักฐานการดูแลต่อเนื่อง หรือ CXR/spirometry ผู้ป่วยใหม่ควรมี spirometry (FEV1/FVC < 70%) ถ้า COPD + pneumonia ให้ PDx เป็น COPD with acute lower respiratory infection (J44.0) และ pneumonia เป็นโรคร่วม
-- **Acute respiratory failure:** มีอาการทางสมองหรือเขียว + PaO₂ < 55 และ/หรือ PaCO₂ > 45 (ไม่มี ABG ใช้ O₂ sat < 90%) + ใส่เครื่องช่วยหายใจ (NIV, ET tube หรือบีบ ambu ระหว่าง refer) ถ้ารับต่อจาก รพ.อื่นและพิสูจน์ไม่ได้ว่ายังเข้าเกณฑ์ ไม่ให้สรุป ถ้าหลังผ่าตัดยังต้อง on ventilator ให้ใช้ J95.2
+- **Acute respiratory failure:** มีอาการทางสมองหรือเขียว + PaO₂ < 55 และ/หรือ PaCO₂ > 45 (ไม่มี ABG ใช้ O₂ sat < 90%) + ใส่เครื่องช่วยหายใจ (NIV, ET tube หรือบีบ ambu ระหว่าง refer) ถ้ารับต่อจาก รพ.อื่นและพิสูจน์ไม่ได้ว่ายังเข้าเกณฑ์ ไม่ให้สรุป ถ้าหลังผ่าตัดยังต้อง on ventilator ให้แยกตามชนิดการผ่าตัด: หลังผ่าตัดทรวงอกใช้ **J95.1** (following thoracic surgery), หลังผ่าตัดนอกทรวงอกใช้ **J95.2** (following nonthoracic surgery)
 - **Ventilator:** บันทึกเวลาใส่และเวลาถอด ET tube และเหตุผลที่ใส่ใน progress note เพื่อแยก < 96 กับ ≥ 96 ชม.
 - **บุหรี่:** แยก tobacco use, counselling และ dependence ตามผลประเมิน Fagerström
 
@@ -166,7 +165,7 @@
 ### 5.6 Electrolyte
 
 - เป็นอาการของโรคหลัก (diarrhea, CKD ฯลฯ) **ไม่ต้องสรุป** ยกเว้นแพทย์วินิจฉัยและรักษาจำเพาะ
-- เอกสารหนึ่งใช้เกณฑ์เช่น severe hyponatremia (Na < 125) หรือ severe hypokalemia (K < 2.5) ร่วมกับมีการรักษา อีกส่วนของเอกสารเดียวกันใช้ "ผล lab ผิดปกติ + มีการรักษา หรือมีการตรวจติดตามใน 24 ชม. + มีบันทึกของแพทย์/พยาบาล" ควรยึดเกณฑ์ audit ฉบับปัจจุบันของกองทุน
+- **แนวทางปฏิบัติ:** ต้องมีครบ 3 องค์ประกอบ คือ (1) แพทย์บันทึกวินิจฉัยชัดเจน (2) ผล lab ผิดปกติจริง และ (3) มีการรักษาจำเพาะ (เช่น IV KCl, 3% NaCl, RI+glucose/Kayexalate) หรือติดตามผลซ้ำอย่างชัดเจน กรณีระดับไม่รุนแรง (เช่น Na ≥ 125 หรือ K ≥ 2.5 ที่ไม่ได้รักษาจำเพาะ) ให้เตือนเป็นความเสี่ยงถูก audit ตัด และตรวจสอบกับเกณฑ์ฉบับปัจจุบันของกองทุน
 
 ### 5.7 ต่อมไร้ท่อ / ตับ / มะเร็ง / HIV
 
@@ -183,7 +182,7 @@
 
 ### 5.8 สุรา / ยาเสพติด
 
-แยกระดับ alcohol use (Z72.1), counselling (Z72.4), dependence และ withdrawal (F10.-) ตามผลประเมินและการรักษาที่ได้ ถ้าชักจาก withdrawal ไม่ต้องให้รหัส convulsion เพิ่ม
+แยกระดับ alcohol use (`Z72.1`), alcohol abuse counselling and surveillance (`Z71.4`), dependence และ withdrawal (`F10.-`) ตามผลประเมินและการรักษาที่ได้ ถ้าชักจาก withdrawal ไม่ต้องให้รหัส convulsion (`R56.8`) เพิ่ม
 
 ---
 
