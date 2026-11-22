@@ -22,7 +22,11 @@ async function Chart({ params }: Pick<PageProps<"/ward/[an]">, "params">) {
   const patient = (await db.query<Patient>("select * from ward_patient where an = $1", [an])).rows[0];
   if (!patient) notFound();
   const notes = (await db.query<Note>("select at, kind, author, body from ward_note where an = $1 order by seq", [an])).rows;
-  const { draft } = (await db.query<{ draft: Draft }>("select draft from ward_draft where an = $1", [an])).rows[0];
+  // Charts imported from the HIS have no draft until one is written for them.
+  const draft: Draft = (await db.query<{ draft: Draft }>("select draft from ward_draft where an = $1", [an])).rows[0]?.draft ?? {
+    lines: [], summary: ["", "", "", "", ""], notCoded: [], variants: [],
+    alerts: [{ level: "suggest", text: "ยังไม่มีร่าง discharge summary สำหรับ AN นี้ ให้ AI ร่างด้วย skill discharge-summary" }],
+  };
 
   // Official names for every code the screen shows, including codes a variant would add.
   const codes = [

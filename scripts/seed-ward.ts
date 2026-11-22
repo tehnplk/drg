@@ -2,7 +2,7 @@
 // usage: node scripts/seed-ward.ts   (run `npm run import-tgrp` once before; stop `next dev` first, PGlite locks its folder)
 // Every code in a draft must exist in icd10_desc / icd9_desc, and every variant must point at a code the draft has.
 import { db } from "../lib/db.ts";
-import type { Draft, Note, Patient } from "../lib/ward.ts";
+import { WARD_SCHEMA, type Draft, type Note, type Patient } from "../lib/ward.ts";
 
 type Seed = { patient: Patient; notes: [Note["at"], Note["kind"], string, string][]; draft: Draft };
 
@@ -493,17 +493,7 @@ async function check() {
 
 await check();
 await db.transaction(async (tx) => {
-  await tx.exec(`drop table if exists ward_draft, ward_note, ward_patient;
-    create table ward_patient (
-      an text primary key, hn text not null, name text not null, sex text not null, age integer not null,
-      age_day integer not null, weight double precision not null, ward text not null, bed text not null,
-      insurance text not null, attending text not null, working_dx text not null, admit_at text not null,
-      discharge_at text not null, leave_days integer not null, discharge_status text not null,
-      discharge_type text not null, transfer_to text not null);
-    create table ward_note (
-      an text not null references ward_patient, seq integer not null, at text not null,
-      kind text not null, author text not null, body text not null, primary key (an, seq));
-    create table ward_draft (an text primary key references ward_patient, draft jsonb not null);`);
+  await tx.exec(`drop table if exists ward_draft, ward_note, ward_patient; ${WARD_SCHEMA}`);
   for (const { patient, notes, draft } of SEEDS) {
     const cols = Object.keys(patient);
     await tx.query(`insert into ward_patient (${cols.join(",")}) values (${cols.map((_, i) => `$${i + 1}`).join(",")})`, Object.values(patient));

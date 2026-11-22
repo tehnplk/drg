@@ -10,11 +10,13 @@
     "import-tgrp": "node scripts/import-tgrp.ts",
     "test-tdrg": "node scripts/test-tdrg.ts",
     "seed-ward": "node scripts/seed-ward.ts",
+    "import-his": "node scripts/import-his.ts",
     "e2e": "playwright test"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.13",
     "lucide-react": "^0.511.0",
+    "mysql2": "^3.24.6",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"

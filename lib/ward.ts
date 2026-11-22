@@ -22,6 +22,19 @@ export type Patient = {
   transfer_to: string; // "" unless discharge_type is 4
 };
 
+// Tables behind the ward screens; filled by scripts/seed-ward.ts (demo) and scripts/import-his.ts (real HIS).
+export const WARD_SCHEMA = `
+  create table if not exists ward_patient (
+    an text primary key, hn text not null, name text not null, sex text not null, age integer not null,
+    age_day integer not null, weight double precision not null, ward text not null, bed text not null,
+    insurance text not null, attending text not null, working_dx text not null, admit_at text not null,
+    discharge_at text not null, leave_days integer not null, discharge_status text not null,
+    discharge_type text not null, transfer_to text not null);
+  create table if not exists ward_note (
+    an text not null references ward_patient, seq integer not null, at text not null,
+    kind text not null, author text not null, body text not null, primary key (an, seq));
+  create table if not exists ward_draft (an text primary key references ward_patient, draft jsonb not null);`;
+
 export const DISCHARGE_TYPES = {
   "1": "With approval",
   "2": "Against advice",
