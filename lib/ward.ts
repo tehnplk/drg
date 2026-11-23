@@ -222,6 +222,15 @@ export type HisDx = { type: string; text: string; icd10: string };
 const bare = (c: string) => c.replace(/\+.*$/, "").replace(/\./g, "").toUpperCase(); // E11.9 -> E119
 const dotted = (c: string) => (c.length > 3 ? `${c.slice(0, 3)}.${c.slice(3)}` : c); // E119 -> E11.9
 
+// The coded diagnoses the physician entered on the HIS discharge summary, as draft lines: what the screen shows
+// before any AI draft, so a case the physician has summarised does not look empty.
+export const hisLines = (his: HisDx[]): Line[] => his.filter((h) => h.icd10).map((h) => ({
+  type: /principal/i.test(h.type) ? "Principal diagnosis" : /morbid/i.test(h.type) ? "Comorbidity"
+    : /complic/i.test(h.type) ? "Complication" : /external/i.test(h.type) ? "External cause" : "Other diagnosis",
+  text: h.text, code: dotted(bare(h.icd10)), status: "ambiguous",
+  evidence: "แพทย์ลงในใบสรุปการจำหน่าย (HIS) — ยังไม่ได้ตรวจรหัสกับชาร์ท",
+}));
+
 // The coder's rule (Standard Coding Guidelines; coders query, they do not rewrite): draft A keeps the physician's PDx,
 // and a diagnosis the physician did not enter is a query, not part of A. Where the AI broke this, A is put back and
 // the AI's proposal becomes a variant with a question. Procedures and external causes are the coder's own work and stay.

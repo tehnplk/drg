@@ -215,7 +215,7 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
             </div>
             <p className="flex items-center gap-2 px-1 text-xs text-slate-500">
               <Info className="size-4 shrink-0" />
-              {draft.lines.length ? `ร่างโดย AI จากบันทึก ${notes.length} รายการ · ` : ""}ทุกรหัสต้องมีแพทย์หรือ coder กดยืนยัน AI เสนอและเตือนเท่านั้น
+              {version != null ? `ร่างโดย AI จากบันทึก ${notes.length} รายการ · ` : draft.lines.length ? "รหัสตามที่แพทย์ลงใน HIS ยังไม่ผ่าน AI · " : ""}ทุกรหัสต้องมีแพทย์หรือ coder กดยืนยัน AI เสนอและเตือนเท่านั้น
             </p>
             {versions.length > 0 && (
               <p className="flex flex-wrap items-center gap-1.5 px-1 text-xs text-slate-500">
@@ -248,8 +248,8 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
           <SectionCard id="summary" step={1} icon={FileText} tone="indigo" title="แบบสรุปการรักษาผู้ป่วยใน (ร่าง)" subtitle="ตามเกณฑ์ MRA ส่วน Discharge Summary">
             <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <Field icon={Hash} label="HN / AN"><span className="font-mono">{p.hn} / {p.an}</span></Field>
-              <Field icon={UserRound} label="เพศ / อายุ">
-                {p.sex === "1" ? "ชาย" : "หญิง"} / {ageText(p)}{p.age_day ? ` · น้ำหนักแรกรับ ${p.weight} kg` : ""}
+              <Field icon={UserRound} label="เพศ / อายุ / น้ำหนัก">
+                {p.sex === "1" ? "ชาย" : "หญิง"} / {ageText(p)}{p.weight ? ` · ${p.weight} kg` : ""}
               </Field>
               <Field icon={CalendarDays} label="วันเวลารับไว้">{formatThaiDateTime(p.admit_at)}</Field>
               <Field icon={CalendarCheck} label="วันเวลาจำหน่าย">{formatThaiDateTime(p.discharge_at)}</Field>

@@ -7,7 +7,7 @@ import { staffWords } from "@/lib/agent.ts";
 import { finalOf, reviewsOf, versionsOf } from "@/lib/charts.ts";
 import { db } from "@/lib/db.ts";
 import { withName } from "@/lib/pii.ts";
-import type { Draft, Note, Patient } from "@/lib/ward.ts";
+import { hisLines, type Draft, type HisDx, type Note, type Patient } from "@/lib/ward.ts";
 import Summary from "./summary.tsx";
 
 export const metadata: Metadata = { title: "D/C Summary และ DRG" };
@@ -36,9 +36,13 @@ async function Chart({ params, searchParams }: Pick<PageProps<"/charts/[an]/disc
   const version = old ? v : current?.version ?? null;
   const saved = old ?? current?.draft;
   const [reviews, final, versions] = await Promise.all([reviewsOf(version), finalOf(an), versionsOf(an, "dcsum")]);
+  const his = saved ? [] : hisLines((await db.query<HisDx>(
+    "select type, text, icd10 from ward_dx_his where an = $1 and form = 'DC Summary' order by seq", [an])).rows);
   const draft: Draft = saved ? staffWords(saved) : {
-    lines: [], summary: ["", "", "", "", ""], notCoded: [], variants: [],
-    alerts: [{ level: "suggest", text: "ยังไม่มีร่าง D/C Summary ของเคสนี้ กด \"Sum with AI\" ที่ขั้นที่ 2 ด้านบน ใช้เวลาประมาณ 1–3 นาที" }],
+    lines: his, summary: ["", "", "", "", ""], notCoded: [], variants: [],
+    alerts: [{ level: "suggest", text: his.length
+      ? "ยังไม่มีร่าง D/C Summary จาก AI — ที่แสดงคือการวินิจฉัยที่แพทย์ลงใน HIS ยังไม่ได้ตรวจ กด \"Sum with AI\" ด้านบนเพื่อตรวจและร่างให้ครบ ใช้เวลาประมาณ 1–3 นาที"
+      : "ยังไม่มีร่าง D/C Summary ของเคสนี้ กด \"Sum with AI\" ด้านบน ใช้เวลาประมาณ 1–3 นาที" }],
   };
 
   // Official names for every code the screen shows, including codes a variant would add.

@@ -1,6 +1,6 @@
 // node scripts/test-draft.ts — draft A follows the physician's HIS discharge summary (lib/ward.ts followPhysician).
 import assert from "node:assert/strict";
-import { applyChange, finalCoding, followPhysician, LINE_ROLES, type Draft, type Line } from "../lib/ward.ts";
+import { applyChange, finalCoding, followPhysician, hisLines, LINE_ROLES, type Draft, type Line } from "../lib/ward.ts";
 
 const line = (type: Line["type"], code: string, text = code): Line => ({ type, text, code, status: "exact", evidence: "ชาร์ท" });
 const draft = (lines: Line[], variants: Draft["variants"] = []): Draft => ({ lines, summary: ["", "", "", "", ""], notCoded: [], alerts: [], variants });
@@ -45,6 +45,9 @@ const answers = Object.fromEntries([
 const done = finalCoding(fixed, answers);
 assert.deepEqual(done.missing, []);
 assert.deepEqual(done.coded.map((c) => `${c.role}:${c.code}`), ["pdx:E11.9", "sdx:I10", "sdx:E78.2"], "rejected code out, confirmed variant in");
+
+// No AI draft yet: the screen shows the physician's coded HIS diagnoses, dotted, uncoded ones left out.
+assert.deepEqual(a(draft(hisLines([...his, { type: "Principal Diagnosis", text: "Epilepsy", icd10: "" }]))), ["pdx:E11.9", "sdx:I10"]);
 
 // Already following the physician, or no HIS summary yet: unchanged.
 const good = draft([line("Principal diagnosis", "E11.9"), line("Comorbidity", "I10")]);
