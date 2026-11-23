@@ -40,7 +40,7 @@ async function Letter({ params, searchParams }: Pick<PageProps<"/charts/[an]/que
         <PrintButton />
       </div>
       <article id="letter" className="grid gap-5 rounded-2xl bg-white p-8 leading-relaxed text-slate-900 shadow-sm ring-1 ring-slate-200 print:rounded-none print:shadow-none print:ring-0">
-        <p><b>เรียน</b> แพทย์ผู้รักษา{p.attending.trim() ? ` (${p.attending.trim()})` : ""}</p>
+        <p><b>เรียน</b> แพทย์ผู้ทำการรักษา</p>
         <p><b>เรื่อง</b> ขอข้อมูลเพิ่มเติมเพื่อความถูกต้องและสมบูรณ์ของเวชระเบียนผู้ป่วยใน</p>
         <p>
           ผู้ป่วย {p.name} HN {p.hn} AN {p.an} หอผู้ป่วย {p.ward} รับไว้ {formatThaiDateTime(p.admit_at)} จำหน่าย {formatThaiDateTime(p.discharge_at)}
