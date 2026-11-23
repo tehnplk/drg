@@ -9,8 +9,11 @@ const nextConfig: NextConfig = {
     { source: "/", destination: "/discharges", permanent: false },
     { source: "/discharged", destination: "/discharges", permanent: true },
     { source: "/ward", destination: "/charts", permanent: true },
-    { source: "/ward/:an/audit", destination: "/charts/:an/audit", permanent: true },
-    { source: "/ward/:an", destination: "/charts/:an/discharge-summary", permanent: true },
+    { source: "/ward/:an/audit", destination: "/charts/:an/query", permanent: true },
+    { source: "/ward/:an", destination: "/charts/:an/coding", permanent: true },
+    // the chart audit became step 1 (Pre-coding + Query), the D/C summary step 2 (Complete coding)
+    { source: "/charts/:an/audit", destination: "/charts/:an/query", permanent: true },
+    { source: "/charts/:an/discharge-summary", destination: "/charts/:an/coding", permanent: true },
   ],
   cacheComponents: true,
   partialPrefetching: true,

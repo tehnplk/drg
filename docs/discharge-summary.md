@@ -8,7 +8,7 @@
 
 ## 1. หลักการสำคัญ
 
-1. **ตรวจชาร์ทก่อนสรุป (Pre-discharge Chart Audit / Concurrent CDI)** ควรตรวจสอบความสมบูรณ์ของหลักฐานต้นทาง (progress note, nursing note, ผล lab/imaging, operative note, เวลา ventilator, แผนหลังจำหน่ายและ home med) *ก่อน* แพทย์เขียนใบสรุป เพื่อปิดช่องโหว่ขณะผู้ป่วยยังอยู่และลดการแก้เอกสารย้อนหลัง (ใช้ skill `chart-audit`)
+1. **ตรวจชาร์ทก่อนสรุป (Pre-discharge Chart Audit / Concurrent CDI)** ควรตรวจสอบความสมบูรณ์ของหลักฐานต้นทาง (progress note, nursing note, ผล lab/imaging, operative note, เวลา ventilator, แผนหลังจำหน่ายและ home med) *ก่อน* แพทย์เขียนใบสรุป เพื่อปิดช่องโหว่ขณะผู้ป่วยยังอยู่และลดการแก้เอกสารย้อนหลัง (หลังจำหน่ายใช้ skill `pre-coding-query` ตรวจชาร์ทเทียบกับใบสรุปและตั้ง query ถึงแพทย์)
 2. **สรุปจากสิ่งที่เกิดขึ้นจริงและมีหลักฐานในเวชระเบียน** ทุกการวินิจฉัยต้องมีประวัติ ตรวจร่างกาย ผลตรวจ หรือการรักษาที่สนับสนุนอยู่ใน chart
 3. **แพทย์เป็นผู้วินิจฉัย ไม่ใช่ coder** coder ห้ามให้รหัสจากผล lab เอง เช่น ห้ามจำแนกชนิดของ anemia จาก CBC หรือให้รหัส ABO isoimmunization (`P55.1`) จากผล DCT+ ถ้าแพทย์ไม่ได้เขียนวินิจฉัยไว้
 4. **ไม่ปรับแต่งรหัสเพื่อเพิ่ม RW (No RW optimisation)** ตรวจทั้งสรุปขาด (under-coding) และสรุปเกินหลักฐาน (over-coding) ด้วยมาตรฐานหลักฐานเดียวกัน การลงรหัสที่ไม่มีหลักฐานรองรับมีความเสี่ยงถูกเรียกเงินคืนและบทลงโทษตามระเบียบคณะกรรมการหลักประกันสุขภาพแห่งชาติ พ.ศ. 2566 ข้อ 12
@@ -233,7 +233,7 @@
 
 ## 7. Checklist สองจังหวะ: ก่อนเขียนสรุป และก่อนลงนาม
 
-### 7.1 Pre-discharge Chart Audit (ก่อนเขียนใบสรุป — `chart-audit` skill)
+### 7.1 Pre-discharge Chart Audit (ตรวจชาร์ทและ query แพทย์ — `pre-coding-query` skill)
 
 - [ ] เงื่อนไขบังคับครบ: ทารก < 28 วันมีน้ำหนักแรกรับ (≥ 0.3 กก.), กรณี transfer ระบุชื่อ รพ.ปลายทางแล้ว
 - [ ] ไม่มีภาวะที่วินิจฉัยไว้โดยขาดหลักฐานรองรับ (ผลอ่าน CXR สำหรับ pneumonia, ABG/SpO₂ + ventilator สำหรับ respiratory failure, hemoculture/SOFA สำหรับ sepsis, การให้เลือดสำหรับ acute blood loss)
@@ -241,7 +241,7 @@
 - [ ] ความจำเพาะของโรคชัดเจน (CKD stage, AKI vs prerenal, ชนิด anemia, ชนิด DM, open/closed/stability ของกระดูกหัก)
 - [ ] บันทึกวันเวลาเริ่ม–สิ้นสุด OR, ชั่วโมงเครื่องช่วยหายใจ, กลไก/สถานที่บาดเจ็บ, แผนวันนัดติดตาม และ home medication reconciliation ครบถ้วน
 
-### 7.2 Checklist ก่อนลงนาม Discharge Summary (`discharge-summary` skill)
+### 7.2 Checklist ก่อนลงนาม Discharge Summary (`complete-coding` skill)
 
 - [ ] PDx คือเหตุผลที่รับไว้รักษา (ไม่ใช่อาการ) เขียนเต็ม ไม่ใช้ตัวย่อ (MRA ข้อ 5)
 - [ ] โรคร่วมและโรคแทรกครบทุกโรคที่ได้รับการตรวจหรือรักษา และมีหลักฐานใน chart (ไม่เกินโควตา 12 SDx ที่ส่งเข้า TGrp)

@@ -79,12 +79,12 @@ export const WARD_SCHEMA = `
   create table if not exists ward_audit (
     an text primary key references ward_patient on delete cascade, status text not null, at text not null, report text not null);
   alter table ward_audit add column if not exists hash text; -- ward_sync.hash the audit was made from
-  alter table ward_audit add column if not exists result jsonb; -- AuditResult (lib/agent.ts) when an agent made it
+  alter table ward_audit add column if not exists result jsonb; -- the old chart-audit agent's result, kept for history
   alter table ward_audit add column if not exists model text;
   -- One row per agent run: what it did (each skill script it ran) and what it cost, shown next to its result.
   create table if not exists agent_run (
     id serial primary key, an text not null references ward_patient on delete cascade,
-    kind text not null, -- "audit" | "dcsum"
+    kind text not null, -- "precode" | "dcsum" ("audit": the old chart audit, kept for history)
     status text not null, -- "running" | "done" | "error"
     model text not null, started_at text not null, finished_at text, steps integer, usage jsonb, trace jsonb, error text);
   alter table agent_run add column if not exists progress text; -- what the run is doing now, shown while it runs
@@ -92,7 +92,7 @@ export const WARD_SCHEMA = `
   -- Every AI result, never overwritten; ward_audit and ward_draft hold the latest and point at its version.
   create table if not exists ward_history (
     id serial primary key, an text not null references ward_patient on delete cascade,
-    kind text not null, -- "audit" | "dcsum"
+    kind text not null, -- "precode" | "dcsum" ("audit": the old chart audit, kept for history)
     at text not null, model text, hash text, result jsonb not null);
   create index if not exists ward_history_an on ward_history (an, kind, id desc);
   alter table ward_audit add column if not exists version integer;
@@ -105,6 +105,10 @@ export const WARD_SCHEMA = `
     select an, 'audit', at, model, hash, coalesce(result, jsonb_build_object('status', status, 'report_markdown', report)) from ward_audit
     where version is null returning id, an)
   update ward_audit a set version = h.id from h where a.an = h.an;
+  -- Step 1, Pre-coding + Query (agent kind "precode"): the latest result, a Draft, pointing at its version.
+  create table if not exists ward_precode (
+    an text primary key references ward_patient on delete cascade, result jsonb not null, at text not null,
+    model text, hash text, version integer not null references ward_history);
   -- A person's decision on one item of one AI version (REVIEW_ITEM). by = the name the user entered: the app has no login.
   create table if not exists ward_review (
     version integer not null references ward_history on delete cascade, item text not null,
@@ -137,14 +141,6 @@ export function finalCoding(d: Draft, reviews: Reviews): { coded: Coded[]; missi
 
 // Raw tables a sync replaces, children of ward_patient.
 export const RAW_TABLES = ["ward_note", "ward_lab", "ward_med", "ward_vital", "ward_io", "ward_followup", "ward_bed", "ward_dx_his"] as const;
-
-// Pre-discharge chart audit readiness, as the chart-audit skill decides it (saved by its save-audit.ts).
-export const AUDIT_STATUS = {
-  blocking: "ติดเงื่อนไขบังคับ",
-  gaps: "ควรปิดช่องโหว่ก่อนสรุป",
-  ready: "พร้อมสรุปการจำหน่าย",
-} as const;
-export type AuditStatus = keyof typeof AUDIT_STATUS;
 
 export const DISCHARGE_TYPES = {
   "1": "With approval",

@@ -1,16 +1,18 @@
-// AI agents for the chart: pre-discharge audit and discharge-summary draft. Each one runs the workspace skill
-// (.claude/skills/*/SKILL.md and its references) as its instructions, and the skill's own scripts as its only tool.
-// Those scripts read the de-identified chart from PostgreSQL; the agent never reaches the HIS. Server only.
+// AI agents for the chart, one per AI step: 1 pre-coding + query ("precode"), 2 complete coding ("dcsum"). Each one runs
+// the workspace skill (.claude/skills/*/SKILL.md and its references) as its instructions, the skill's own scripts as
+// its tool, and returns its result through submit_draft. Those scripts read the de-identified chart from PostgreSQL;
+// the agent never reaches the HIS. Server only.
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { extractJsonMiddleware, generateText, isStepCount, Output, tool, wrapLanguageModel, type LanguageModel } from "ai";
+import { generateText, isStepCount, tool, type LanguageModel } from "ai";
 import { z } from "zod";
+import type { AgentKind } from "./charts.ts";
 import { db, type Queryable } from "./db.ts";
-import { followPhysician, LINE_ROLES, WARD_SCHEMA, type AuditStatus, type Draft, type HisDx, type LineType } from "./ward.ts";
+import { followPhysician, LINE_ROLES, WARD_SCHEMA, type Change, type Draft, type HisDx, type LineType } from "./ward.ts";
 
 try { process.loadEnvFile(".env"); } catch { /* Next loads .env itself */ }
 
@@ -29,21 +31,13 @@ const openrouter = createOpenRouter({
 
 // Tried in order: a run that fails on one model starts over on the next. maxOutputTokens is per step;
 // OpenRouter reserves credit for it up front, DeepSeek counts its thinking in it (context 1M, output up to 393k).
-// DeepSeek through its Responses API, which takes a JSON schema for the structured output (chat only gets json_object).
-// With tools in the request it still answers "prose + ```json {...} ```", so keep only the outer {...}.
+// The result comes back as the submit_draft tool's input, so no provider needs a structured-output mode.
 type Model = { id: string; model: LanguageModel; maxOutputTokens: number };
-const outerObject = (t: string) => {
-  const s = t.indexOf("{"), e = t.lastIndexOf("}");
-  return s >= 0 && e > s ? t.slice(s, e + 1) : t;
-};
 const MODELS: Model[] = [
   { id: AGENT_MODEL, model: openrouter(AGENT_MODEL), maxOutputTokens: 16_000 },
   ...(process.env.DEEPSEEK_KEY ? [{
     id: `deepseek/${FALLBACK_MODEL}`, maxOutputTokens: 32_000,
-    model: wrapLanguageModel({
-      model: createDeepSeek({ apiKey: process.env.DEEPSEEK_KEY }).responses(FALLBACK_MODEL),
-      middleware: extractJsonMiddleware({ transform: outerObject }),
-    }),
+    model: createDeepSeek({ apiKey: process.env.DEEPSEEK_KEY }).responses(FALLBACK_MODEL),
   }] : []),
 ];
 
@@ -66,12 +60,12 @@ with these adjustments for this app (they override the skill where they differ):
 - Keep HN, AN and the patient's name as the chart shows them; do not mask them. The app shows the result only to staff.
 - No human is in this conversation. Do not ask questions; put open questions for the physician in the result.
 - The humanizer step is not available here: skip it.
-- Return the result in the structured output format instead of a markdown reply. The app saves and displays it.
+- Return the result by calling the submit_draft tool instead of a markdown reply. The app saves and displays it.
 - Write the result in Thai, keeping codes, official code names and medical terms in English, as the skill says.
 - Write dates as short Thai dates with the Buddhist-era year, and times as 24-hour HH:MM: "19 พ.ย. 2569 23:30",
   or "19 พ.ย." when the year is clear. The chart prints dates as YYYY-MM-DD (Gregorian): add 543 to the year.
 - Staff read every word of the result. Never name a script, file, tool or skill (no "lookup.ts", "check-rules",
-  "SKILL.md", "skill discharge-summary"). Say what was checked instead: "ตรวจกับฐานรหัส ICD-10-TM",
+  "SKILL.md", "skill complete-coding"). Say what was checked instead: "ตรวจกับฐานรหัส ICD-10-TM",
   "ตรวจกฎ audit และ MRA", "จัดกลุ่ม Thai DRG".`;
 
 // The same rule after the fact, for results saved before it or a model that slips: script, file and skill names
@@ -83,6 +77,9 @@ const STAFF_WORDS: [RegExp, string][] = [
   [/`?(?:[\w-]+\/scripts\/)?group\.ts`?/gi, "ตัวจัดกลุ่ม Thai DRG"],
   [/`?(?:[\w-]+\/scripts\/)?save-audit\.ts`?/gi, "การบันทึกผล"],
   [/`?(?:[\w-]+\/scripts\/)?chart\.ts`?/gi, "ข้อมูลชาร์ท"],
+  [/(?:ด้วย |ตาม )?skill `?pre-coding-query`?/gi, "ในขั้น Pre-coding + Query"],
+  [/(?:ด้วย |ตาม )?skill `?complete-coding`?/gi, "ในขั้น Complete coding"],
+  // names before the 3-step rename, still in saved results
   [/(?:ด้วย |ตาม )?skill `?chart-audit`?/gi, "ตามเกณฑ์ Audit ชาร์ท"],
   [/(?:ด้วย |ตาม )?skill `?discharge-summary`?/gi, "ในขั้น D/C Summary"],
   [/(?:ด้วย |ตาม )?skill `?thai-drg`?/gi, "ตามเกณฑ์ Thai DRG"],
@@ -93,18 +90,26 @@ export const staffWords = <T>(value: T): T =>
 
 // One agent step in staff words, for the record of what the AI did (no script names).
 export const stepLabel = (script: string, args: string[]) =>
-  (SCRIPTS[script as Script]?.progress(args) ?? "ใช้เครื่องมือของระบบ").replace(/^กำลัง/, "");
+  (script === "submit_draft" ? "ตรวจรหัสในร่าง"
+    : SCRIPTS[(LEGACY[script] ?? script) as Script]?.progress(args) ?? "ใช้เครื่องมือของระบบ").replace(/^กำลัง/, "");
 
-// ── The one tool: the skill's own scripts ───────────────────────────────────
+// ── The tools: the skill's own scripts, and submit_draft ────────────────────
 // progress: the line the screen shows while the script runs (agent_run.progress). No patient data in it.
 const SCRIPTS = {
-  "chart-audit/scripts/scan-chart.ts": { chart: true, progress: () => "กำลังสแกนชาร์ทหาช่องโหว่" },
-  "discharge-summary/scripts/chart.ts": { chart: true, progress: () => "กำลังอ่านชาร์ททั้งหมด" },
-  "discharge-summary/scripts/lookup.ts": { chart: false, progress: (a) => `กำลังตรวจรหัส ${a.join(" ").slice(0, 40)}` },
-  "discharge-summary/scripts/check-rules.ts": { chart: false, progress: () => "กำลังตรวจกฎ audit และ MRA" },
+  "pre-coding-query/scripts/scan-chart.ts": { chart: true, progress: () => "กำลังสแกนชาร์ทหาช่องโหว่" },
+  "complete-coding/scripts/chart.ts": { chart: true, progress: () => "กำลังอ่านชาร์ททั้งหมด" },
+  "complete-coding/scripts/lookup.ts": { chart: false, progress: (a) => `กำลังตรวจรหัส ${a.join(" ").slice(0, 40)}` },
+  "complete-coding/scripts/check-rules.ts": { chart: false, progress: () => "กำลังตรวจกฎ audit และ MRA" },
   "thai-drg/scripts/group.ts": { chart: false, progress: () => "กำลังจัดกลุ่ม DRG" },
 } satisfies Record<string, { chart: boolean; progress: (args: string[]) => string }>;
 type Script = keyof typeof SCRIPTS;
+// Script paths before the 3-step rename, still in the traces of old runs.
+const LEGACY: Record<string, Script> = {
+  "chart-audit/scripts/scan-chart.ts": "pre-coding-query/scripts/scan-chart.ts",
+  "discharge-summary/scripts/chart.ts": "complete-coding/scripts/chart.ts",
+  "discharge-summary/scripts/lookup.ts": "complete-coding/scripts/lookup.ts",
+  "discharge-summary/scripts/check-rules.ts": "complete-coding/scripts/check-rules.ts",
+};
 const run = promisify(execFile);
 
 type Step = { script: string; args: string[]; ms: number; ok: boolean };
@@ -138,18 +143,7 @@ function skillScriptTool(an: string, allowed: Script[], trace: Step[], say: Say)
 }
 
 // ── Result shapes ────────────────────────────────────────────────────────────
-// Every field required (null instead of optional) so providers with strict structured output accept the schema.
-const AuditSchema = z.object({
-  status: z.enum(["blocking", "gaps", "ready"]).describe("blocking = 🔴 ติดเงื่อนไขบังคับ, gaps = 🟡 ควรปิดช่องโหว่ก่อนสรุป, ready = 🟢 พร้อมสรุปการจำหน่าย"),
-  blocking: z.array(z.object({ issue: z.string(), action: z.string() })).describe("Section 1 🔴 Blocking"),
-  evidence_risks: z.array(z.object({ statement: z.string(), gap: z.string(), check: z.string() })).describe("Section 2 🟠 Over-coding / audit risk"),
-  clinical_gaps: z.array(z.object({ finding: z.string(), unclear: z.string() })).describe("Section 3 🔵 Clinical & specificity gaps"),
-  readiness: z.array(z.object({ item: z.string(), status: z.enum(["ok", "gap", "na"]), note: z.string() })).describe("Section 4 MRA 4, 5, 6, 8"),
-  queries: z.array(z.object({ question: z.string(), owner: z.string() })).describe("Section 5, at most 5 non-leading questions"),
-  report_markdown: z.string().describe("The full report in the assets/audit-report.md template"),
-});
-export type AuditResult = z.infer<typeof AuditSchema>;
-
+// Every field required (null instead of optional) so providers with strict tool schemas accept it.
 const LINE_TYPES = Object.keys(LINE_ROLES) as [LineType, ...LineType[]];
 const DraftSchema = z.object({
   lines: z.array(z.object({
@@ -201,12 +195,12 @@ async function draftProblems(d: z.infer<typeof DraftSchema>) {
 }
 
 // The draft comes back as this tool's input, not as a structured-output reply, so a wrong code goes back to the
-// model to fix. After MAX_SUBMITS tries it is accepted anyway and the checks in runDischargeSummary flag what is left.
+// model to fix. After MAX_SUBMITS tries it is accepted anyway and the checks in runDraft flag what is left.
 const MAX_SUBMITS = 3;
 type Submitted = { draft?: z.infer<typeof DraftSchema>; tries: number };
 function submitDraftTool(out: Submitted, trace: Step[], say: Say) {
   return tool({
-    description: "Submit the finished discharge-summary draft. It checks every code against the ICD-10-TM / ICD-9-CM tables. "
+    description: "Submit the finished result. It checks every code against the ICD-10-TM / ICD-9-CM tables. "
       + "If it answers accepted: false, fix the listed problems and submit the whole draft again.",
     inputSchema: DraftSchema,
     execute: async (d) => {
@@ -254,7 +248,7 @@ export const nowBkk = () =>new Date(Date.now() + 7 * 3600_000).toISOString().sli
 
 // One agent_run row per run. model = the model that produced the result; on a fallback, error keeps why the
 // earlier model failed (a done run's error is not shown as a failure).
-async function agentRun<T>(an: string, kind: "audit" | "dcsum", go: (m: Model, trace: Step[], say: Say) => Promise<{ value: T; steps: number; usage: unknown }>) {
+async function agentRun<T>(an: string, kind: AgentKind, go: (m: Model, trace: Step[], say: Say) => Promise<{ value: T; steps: number; usage: unknown }>) {
   await db.exec(WARD_SCHEMA);
   const { rows } = await db.query<{ id: number }>(
     "insert into agent_run (an, kind, status, model, started_at, progress) values ($1, $2, 'running', $3, $4, 'กำลังอ่านคำสั่งของ skill') returning id",
@@ -283,16 +277,25 @@ async function agentRun<T>(an: string, kind: "audit" | "dcsum", go: (m: Model, t
   throw new Error("no agent model configured"); // unreachable: MODELS always has the primary
 }
 
-// A result is kept as a new version in ward_history, then shown as the latest (ward_audit / ward_draft), together.
+// A result is kept as a new version in ward_history, then shown as the latest (ward_precode / ward_draft), together.
 // Reviews belong to the version they were made on, so a re-run starts clean and the old decisions stay with the old one.
-async function saveVersion(an: string, kind: "audit" | "dcsum", result: unknown, model: string, hash: string,
-  latest: (tx: Queryable, version: number, at: string) => Promise<unknown>) {
+const LATEST: Record<AgentKind, (tx: Queryable, row: unknown[]) => Promise<unknown>> = {
+  precode: (tx, row) => tx.query(
+    `insert into ward_precode (an, result, at, model, hash, version) values ($1, $2, $3, $4, $5, $6)
+     on conflict (an) do update set result = excluded.result, at = excluded.at, model = excluded.model,
+       hash = excluded.hash, version = excluded.version`, row),
+  dcsum: (tx, row) => tx.query(
+    `insert into ward_draft (an, draft, at, model, hash, version) values ($1, $2, $3, $4, $5, $6)
+     on conflict (an) do update set draft = excluded.draft, at = excluded.at, model = excluded.model, hash = excluded.hash,
+       version = excluded.version`, row),
+};
+async function saveVersion(an: string, kind: AgentKind, result: Draft, model: string, hash: string) {
   const at = nowBkk();
   await db.transaction(async (tx) => {
     const { rows } = await tx.query<{ id: number }>(
       "insert into ward_history (an, kind, at, model, hash, result) values ($1, $2, $3, $4, $5, $6) returning id",
       [an, kind, at, model, hash, JSON.stringify(result)]);
-    await latest(tx, rows[0].id, at);
+    await LATEST[kind](tx, [an, JSON.stringify(result), at, model, hash, rows[0].id]);
   });
 }
 
@@ -302,48 +305,8 @@ const syncHash = async (an: string) => {
   return r.hash;
 };
 
-export async function runAudit(an: string): Promise<AuditResult> {
-  const hash = await syncHash(an);
-  return agentRun(an, "audit", async (m, trace, say) => {
-    const r = await generateText({
-      model: m.model,
-      instructions: cached(RUNTIME(an) + skillText(["chart-audit/SKILL.md", "chart-audit/references/pre-discharge-checklist.md", "chart-audit/assets/audit-report.md"])
-        + `\n\nAfter scan-chart.ts, also read discharge-summary/scripts/chart.ts ${an}: it adds the medication orders, vital-sign
-flowsheet, intake/output, follow-up appointments and ward history that scan-chart.ts does not print.
-Step 6 (save-audit.ts) is done by the app from your structured output: do not try to run it.`),
-      maxOutputTokens: m.maxOutputTokens,
-      prompt: `Run the pre-discharge chart audit for AN ${an}.`,
-      tools: { run_skill_script: skillScriptTool(an, ["chart-audit/scripts/scan-chart.ts", "discharge-summary/scripts/chart.ts"], trace, say) },
-      output: Output.object({ schema: AuditSchema }),
-      stopWhen: isStepCount(MAX_STEPS),
-      onStepStart: ({ stepNumber }) => (stepNumber ? say(THINKING) : undefined),
-    });
-    const a = r.output;
-    await say("กำลังบันทึกผล");
-    await saveVersion(an, "audit", a, m.id, hash, (tx, version, at) => tx.query(
-      `insert into ward_audit (an, status, at, report, hash, result, model, version) values ($1, $2, $3, $4, $5, $6, $7, $8)
-       on conflict (an) do update set status = excluded.status, at = excluded.at, report = excluded.report,
-         hash = excluded.hash, result = excluded.result, model = excluded.model, version = excluded.version`,
-      [an, a.status satisfies AuditStatus, at, a.report_markdown, hash, JSON.stringify(a), m.id, version]));
-    return { value: a, steps: r.steps.length, usage: r.totalUsage };
-  });
-}
-
-export async function runDischargeSummary(an: string): Promise<Draft> {
-  const hash = await syncHash(an);
-  const audit = (await db.query<{ report: string }>("select report from ward_audit where an = $1", [an])).rows[0];
-  return agentRun(an, "dcsum", async (m, trace, say) => {
-    const out: Submitted = { tries: 0 };
-    const r = await generateText({
-      model: m.model,
-      maxOutputTokens: m.maxOutputTokens,
-      instructions: cached(RUNTIME(an) + skillText([
-        "discharge-summary/SKILL.md", "discharge-summary/assets/form.md", "discharge-summary/references/audit-and-coding-rules.md",
-        "discharge-summary/references/examples.md", "thai-drg/SKILL.md", "thai-drg/references/tdrg-rules.md",
-      ]) + `\n\nUse Mode 1 (Full Draft Mode). The structured output carries the same content as assets/form.md:
-lines = Part 1 diagnoses/procedures with the Part 2.1 check of each code, clinical_summary = Clinical summary 1–5,
-not_coded = 2.2, alerts = 2.3, variants = 2.4 with their 2.5 questions. The app groups the DRG from these codes,
-so run thai-drg to check your coding but do not put DRG numbers in the result.
+// Rules for the result both steps share: the app's draft A, variants, the physician's PDx, the clinical summary.
+const RESULT_RULES = `The app groups the DRG from your codes, so run thai-drg to check your coding but do not put DRG numbers in the result.
 Variants: the app shows your lines as draft A, so never repeat A as a variant. Each variant is one alternative answer
 with bare codes only (one code per string, no "or", no prose): make a separate variant for each alternative code.
 To make another code the PDx, swap both ways, e.g. swap [{from:"E11.9",to:"I10"},{from:"I10",to:"E11.9"}].
@@ -354,10 +317,78 @@ Clinical summary: write only what the chart records. Never add advice, warning s
 or appointments that no note records; where the chart has none, write "ยังไม่ได้ระบุ — รอแพทย์ยืนยัน".
 Leave out alerts that only say nothing was found (e.g. "ไม่มี hard stop").
 Return the result by calling submit_draft: that is the structured output here, not a reply. It checks every code;
-when it answers accepted: false, fix the problems it lists (look the codes up again) and submit the whole draft again.`),
-      prompt: `Draft the discharge summary for AN ${an}.${audit ? `\n\nThe chart audit already done for this AN, for context:\n${audit.report}` : ""}`,
+when it answers accepted: false, fix the problems it lists (look the codes up again) and submit the whole result again.`;
+
+const STEP: Record<AgentKind, { files: string[]; scripts: Script[]; note: string; task: string }> = {
+  precode: {
+    files: ["pre-coding-query/SKILL.md", "pre-coding-query/references/query-checklist.md",
+      "complete-coding/references/audit-and-coding-rules.md", "thai-drg/SKILL.md", "thai-drg/references/tdrg-rules.md"],
+    scripts: Object.keys(SCRIPTS) as Script[],
+    note: `submit_draft carries the pre-coding and the queries:
+lines = the physician's diagnoses and procedures pre-coded, each with its reverse-decode check and chart evidence;
+clinical_summary = Clinical summary 1–5 from the chart only; not_coded = findings left uncoded and why;
+alerts = 🔴 blocking items as stop, 🟠 evidence risks as warn, 🔵 clinical/specificity and 📋 MRA gaps as suggest;
+variants = the queries to the physician, at most 5, one topic each: the question, and the code change if the physician
+confirms it. A query that changes no code (OR times, home medication, follow-up) has empty add, remove and swap.`,
+    task: "Pre-code the physician's discharge summary and write the queries to the physician",
+  },
+  dcsum: {
+    files: ["complete-coding/SKILL.md", "complete-coding/assets/form.md", "complete-coding/references/audit-and-coding-rules.md",
+      "complete-coding/references/examples.md", "thai-drg/SKILL.md", "thai-drg/references/tdrg-rules.md"],
+    scripts: (Object.keys(SCRIPTS) as Script[]).filter((s) => s !== "pre-coding-query/scripts/scan-chart.ts"),
+    note: `Use Mode 1 (Full Draft Mode). submit_draft carries the same content as assets/form.md:
+lines = Part 1 diagnoses/procedures with the Part 2.1 check of each code, clinical_summary = Clinical summary 1–5,
+not_coded = 2.2, alerts = 2.3, variants = 2.4 with their 2.5 questions.
+Step 1 (pre-coding + query) is done: the prompt gives its codes and each query with the physician's answer. Read the
+chart again, since the physician may have edited the HIS discharge summary after the queries. A query answered "yes"
+is documented by the physician: code its change in A. A query answered "no": leave it out. Keep as a variant only a
+query still without an answer, with the same question. Ask nothing new unless the chart shows a gap step 1 missed.`,
+    task: "Complete the coding of the discharge summary",
+  },
+};
+
+// Step 1's result and the physician's answers to its queries, for step 2. confirmed: the changes answered "yes".
+async function queryAnswers(an: string): Promise<{ text: string; confirmed: Change[] }> {
+  const p = (await db.query<{ result: Draft; version: number }>("select result, version from ward_precode where an = $1", [an])).rows[0];
+  if (!p) return { text: "\n\nStep 1 (pre-coding + query) was not run for this AN: code from the chart and the HIS summary.", confirmed: [] };
+  const said = new Map((await db.query<{ item: string; decision: string; note: string | null }>(
+    "select item, decision, note from ward_review where version = $1", [p.version])).rows.map((r) => [r.item, r]));
+  const queries = p.result.variants.map((v, i) => {
+    const r = said.get(`variant:${i}`);
+    const answer = !r ? "no answer yet" : `${r.decision === "yes" ? "yes" : "no"}${r.note ? ` (${r.note})` : ""}`;
+    return `- ${v.question ?? v.label} | change if yes: ${JSON.stringify(v.change)} | physician's answer: ${answer}`;
+  });
+  return {
+    text: `\n\nStep 1 pre-coding:\n${p.result.lines.map((l) => `- ${l.type}: ${l.text} ${l.code}`).join("\n")}
+\nStep 1 queries and the physician's answers:\n${queries.join("\n") || "- none"}`,
+    confirmed: p.result.variants.filter((v, i) => v.question && said.get(`variant:${i}`)?.decision === "yes").map((v) => v.change),
+  };
+}
+
+// A query the physician answered "yes" is their documentation as much as the HIS summary is, so followPhysician keeps
+// it in draft A: an added code joins their diagnoses, and a swap of their PDx makes the new code their PDx.
+function withAnswers(his: HisDx[], confirmed: Change[]): HisDx[] {
+  const bare = (c: string) => c.replace(/\./g, "").toUpperCase();
+  const swaps = confirmed.flatMap((c) => Object.entries(c.swap ?? {}));
+  return [
+    ...his.map((h) => ({ ...h, icd10: bare(swaps.find(([from]) => bare(from) === bare(h.icd10))?.[1] ?? h.icd10) })),
+    ...confirmed.flatMap((c) => (c.add ?? []).map((code) => ({ type: "Query answer", text: code, icd10: bare(code) }))),
+  ];
+}
+
+export async function runDraft(an: string, kind: AgentKind): Promise<Draft> {
+  const hash = await syncHash(an);
+  const step = STEP[kind];
+  const answers = kind === "dcsum" ? await queryAnswers(an) : { text: "", confirmed: [] };
+  return agentRun(an, kind, async (m, trace, say) => {
+    const out: Submitted = { tries: 0 };
+    const r = await generateText({
+      model: m.model,
+      maxOutputTokens: m.maxOutputTokens,
+      instructions: cached(RUNTIME(an) + skillText(step.files) + `\n\n${step.note}\n${RESULT_RULES}`),
+      prompt: `${step.task} for AN ${an}.${answers.text}`,
       tools: {
-        run_skill_script: skillScriptTool(an, Object.keys(SCRIPTS) as Script[], trace, say),
+        run_skill_script: skillScriptTool(an, step.scripts, trace, say),
         submit_draft: submitDraftTool(out, trace, say),
       },
       stopWhen: [isStepCount(MAX_STEPS), () => !!out.draft],
@@ -366,18 +397,14 @@ when it answers accepted: false, fix the problems it lists (look the codes up ag
     if (!out.draft) throw new Error(`no draft submitted after ${r.steps.length} steps`);
     await say("กำลังบันทึกผล");
     const his = (await db.query<HisDx>("select type, text, icd10 from ward_dx_his where an = $1 and form = 'DC Summary' order by seq", [an])).rows;
-    const draft = followPhysician(toDraft(out.draft), his);
+    const draft = followPhysician(toDraft(out.draft), withAnswers(his, answers.confirmed));
 
     // Still checked after the fact: a draft accepted after MAX_SUBMITS, and codes followPhysician brought from the HIS.
     const codes = [...new Set([...draft.lines.map((l) => l.code), ...draft.variants.flatMap((v) => [...(v.change.add ?? []), ...Object.values(v.change.swap ?? {})])])];
     for (const c of await unknownCodes(codes))
       draft.alerts.unshift({ level: "stop", text: `รหัส ${c} ไม่พบในตาราง ICD-10-TM / ICD-9-CM ต้องตรวจก่อนใช้` });
 
-    await saveVersion(an, "dcsum", draft, m.id, hash, (tx, version, at) => tx.query(
-      `insert into ward_draft (an, draft, at, model, hash, version) values ($1, $2, $3, $4, $5, $6)
-       on conflict (an) do update set draft = excluded.draft, at = excluded.at, model = excluded.model, hash = excluded.hash,
-         version = excluded.version`,
-      [an, JSON.stringify(draft), at, m.id, hash, version]));
+    await saveVersion(an, kind, draft, m.id, hash);
     return { value: draft, steps: r.steps.length, usage: r.totalUsage };
   });
 }

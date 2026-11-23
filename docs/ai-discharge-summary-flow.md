@@ -8,13 +8,14 @@
 
 ## 1. ภาพรวม
 
-ระบบแบ่งการทำงานออกเป็น **2 จังหวะหลัก** ที่สอดคล้องกับ Agent Skills ในโปรเจกต์:
-- **จังหวะที่ 1 — Pre-discharge Chart Audit / Concurrent CDI (`chart-audit` skill):** ตรวจความสมบูรณ์ของชาร์ทต้นทาง *ก่อน* เขียนใบสรุป (ไม่มีการให้รหัสเบิกและไม่แสดงตัวเลข RW/บาท) เพื่อปิดช่องโหว่ขณะผู้ป่วยยังอยู่ในหอผู้ป่วย
-- **จังหวะที่ 2 — Discharge Summary & Coding Review (`discharge-summary` + `thai-drg` skill):** ร่างใบสรุปการจำหน่าย เสนอและตรวจรหัส ICD-10-TM/ICD-9-CM รันกฎ deterministic (MRA + AI-Audit 18 ข้อ + CC Exclusion) และจำลอง DRG ให้แพทย์/coder ยืนยัน
+ระบบแบ่งการทำงานออกเป็น **3 ขั้น** ที่สอดคล้องกับ Agent Skills ในโปรเจกต์ (หลังแพทย์เขียนใบสรุปใน HIS):
+- **ขั้นที่ 1 — Pre-coding + Query / Retrospective CDI (`pre-coding-query` skill):** ให้รหัสเบื้องต้นตามคำของแพทย์ ตรวจชาร์ทหาช่องโหว่หลักฐาน/nursing/lab/MRA แล้วตั้ง query ถึงแพทย์แบบไม่ชี้นำไม่เกิน 5 ข้อ (ไม่แสดง RW/บาทในคำถาม)
+- **ขั้นที่ 2 — Complete coding (`complete-coding` skill):** ให้รหัสฉบับสมบูรณ์ตามแบบฟอร์ม D/C Summary จากสิ่งที่แพทย์บันทึกหลังตอบ query ตรวจรหัส ICD-10-TM/ICD-9-CM รันกฎ deterministic (MRA + AI-Audit 18 ข้อ + CC Exclusion) ให้ coder ยืนยัน
+- **ขั้นที่ 3 — DRG → AdjRW (`thai-drg` skill):** จัดกลุ่ม DRG จากรหัสที่ยืนยันแล้ว และอนุมัติส่งเบิก
 
 ```mermaid
 flowchart TD
-  P0["0. Pre-discharge Chart Audit / CDI (chart-audit)<br/>scan-chart.ts + AI อ่านชาร์ททุก note<br/>ปิดช่องโหว่หลักฐาน/nursing/lab/MRA (ไม่โชว์ RW/บาท)"] --> A["1. แพทย์เขียน Discharge Summary<br/>dx text + หัตถการ + D/C type"]
+  P0["0. Chart review / CDI (pre-coding-query)<br/>scan-chart.ts + AI อ่านชาร์ททุก note<br/>ปิดช่องโหว่หลักฐาน/nursing/lab/MRA (ไม่โชว์ RW/บาท)"] --> A["1. แพทย์เขียน Discharge Summary<br/>dx text + หัตถการ + D/C type"]
   A --> B["2. ดึงหลักฐานจาก HIS<br/>lab, ยา, หัตถการ, vital, LOS, อายุ/เพศ/น้ำหนัก"]
   B --> C["3. AI Suggest<br/>เสนอรหัส, หาโรคที่ขาด, ตั้งคำถาม (Non-leading)"]
   C --> V["3a. ตรวจ dx_text ↔ dx_name<br/>lookup.ts + reverse-decode check"]
@@ -170,7 +171,7 @@ dx_name  : Acute transmural myocardial infarction of anterior wall
 3. **ห้ามแก้คำวินิจฉัยของแพทย์** coder และ AI ทำได้แค่ query แบบไม่ชี้นำ (non-leading) พร้อมตัวเลือกทางคลินิกที่สมเหตุสมผลรวมถึง *"สาเหตุอื่น"* และ *"ไม่สามารถระบุได้"*
 4. **ถ้ากฎใดเขียนเป็นเงื่อนไขตายตัวได้ ให้อยู่ใน rule engine ไม่ให้ AI ทำ** เพื่อให้ผลตรวจซ้ำได้และอธิบายต่อ auditor ได้ (`scan-chart.ts`, `lookup.ts`, `check-rules.ts`, `group.ts`)
 5. **AI ตรวจงานตัวเองไม่ได้** การตรวจความสอดคล้อง (3a-4) ต้องทำเป็นรอบอิสระ หรือใช้การตรวจย้อนกลับ (reverse-decode check: อ่านเฉพาะ `dx_name` แล้วตรวจว่าได้ความหมายตรง `dx_text` หรือไม่)
-6. **ไม่ปรับแต่งรหัสเพื่อเพิ่ม RW (No RW optimisation)** แจ้งทั้งสรุปขาด (under-code) และสรุปเกินหลักฐาน (over-code) ด้วยมาตรฐานหลักฐานเดียวกัน, แสดง variant ใน 2.4 ทั้งทิศที่ลดและเพิ่ม RW อย่างเป็นกลาง, ห้ามแสดง RW/บาทในคำถาม (และห้ามแสดงใน `chart-audit` ก่อนจำหน่าย), และห้ามใช้คำชี้นำให้เพิ่มรายได้ ("ได้เพิ่ม", "ควรใส่เพื่อเพิ่ม RW") เพื่อไม่ให้เสี่ยงความผิดตามระเบียบคณะกรรมการหลักประกันสุขภาพแห่งชาติ พ.ศ. 2566 ข้อ 12
+6. **ไม่ปรับแต่งรหัสเพื่อเพิ่ม RW (No RW optimisation)** แจ้งทั้งสรุปขาด (under-code) และสรุปเกินหลักฐาน (over-code) ด้วยมาตรฐานหลักฐานเดียวกัน, แสดง variant ใน 2.4 ทั้งทิศที่ลดและเพิ่ม RW อย่างเป็นกลาง, ห้ามแสดง RW/บาทในคำถาม (และห้ามแสดงใน query ของ `pre-coding-query`), และห้ามใช้คำชี้นำให้เพิ่มรายได้ ("ได้เพิ่ม", "ควรใส่เพื่อเพิ่ม RW") เพื่อไม่ให้เสี่ยงความผิดตามระเบียบคณะกรรมการหลักประกันสุขภาพแห่งชาติ พ.ศ. 2566 ข้อ 12
 7. **แยกความหมายของข้อมูลที่ว่างให้ชัดเจน** ในร่างใบสรุปต้องแยก `"ไม่มี"` (ไม่มีจริงทางคลินิก), `"ไม่ระบุ"` (ไม่มีข้อมูลในเอกสารที่ให้มา), `"ไม่เกี่ยวข้อง"` (เช่น น้ำหนักทารกในผู้ใหญ่) และ `"รอแพทย์ยืนยัน"`
 8. **Audit trail ครบ** เก็บ dx_text, รหัสที่เสนอ, dx_name, สถานะ, เหตุผลของ AI ทุกรอบ, การตัดสินใจของคน และเวลา
 9. **ข้อมูลผู้ป่วยไม่ออกนอกระบบโดยไม่ได้รับอนุญาต** ถ้าใช้ LLM ภายนอกต้องตัดหรือปิดบังข้อมูลระบุตัวตน (ชื่อ-สกุล, HN, AN, เลขบัตร ปชช.) ก่อนส่งและในผลลัพธ์ หรือใช้โมเดลภายในให้สอดคล้องกับ PDPA
@@ -198,21 +199,21 @@ dx_name  : Acute transmural myocardial infarction of anterior wall
 
 | ส่วน                                                                                | สถานะ                                                                                           |
 | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Pre-discharge Chart Audit / CDI (ขั้น 0)                                            | ✅ มีแล้วในระดับ Skill/CLI: `chart-audit` skill (`scripts/scan-chart.ts`, `assets/audit-report.md`, `references/pre-discharge-checklist.md`) |
+| Pre-discharge Chart Audit / CDI (ขั้น 0)                                            | ✅ มีแล้วในระดับ Skill/CLI: `pre-coding-query` skill (`scripts/scan-chart.ts`, `assets/query-report.md`, `references/query-checklist.md`) |
 | ดึงชาร์ทจาก HIS (ขั้น 2)                                                           | 🟡 มี CLI import แล้ว (`npm run import-his -- <AN>`, `scripts/import-his.ts`, `ward_patient`/`ward_note`, `scripts/chart.ts`) · รอเชื่อม real-time API |
 | ตารางรหัส ชื่อโรค และการค้นหา (ขั้น 3a-2)                                           | ✅ มีแล้ว: `icd10_desc`, `icd9_desc`, `i10`, `proc`, `ccex`, `dcl` ใน PostgreSQL (Docker, `compose.yaml`); `scripts/lookup.ts` (รองรับ ICD-10, `V–Y`, ICD-9-CM `+ext`, `Cxxxx`, ค้นชื่อทั้ง 2 ตาราง); `/api/libs/icd10\|icd-cm\|icd10-search\|icd9-search/*` |
 | Deterministic Rule Engine: Hard stop, AI-Audit 18 ข้อ, `ccex`, MRA, Grouper gaps (ขั้น 4a–4c) | ✅ มีแล้วในระดับ Skill/CLI (`scripts/check-rules.ts`) · 🟡 รอผูกเข้า Web UI/API |
 | DRG simulator (ขั้น 5, 9a)                                                          | ✅ มีแล้ว: `lib/tdrg/` (ตรงกับ TGrp6305 ~99.9%), `/api/drg/calculate`, `thai-drg` skill (หมายเหตุ: ยังไม่ได้ทำ `†/*` swap และ `O98`/`O99` swap) |
-| AI suggest / reverse-decode / ตรวจหลักฐาน (ขั้น 3a–3c, 4d)                           | ✅ มีแล้วในระดับ Agent Skill (`discharge-summary` skill 2 โหมด: Full Draft Mode + Targeted Q&A Mode, Humanizer scope, No RW optimisation) · 🟡 รอผูก backend LLM บน Web UI |
+| AI suggest / reverse-decode / ตรวจหลักฐาน (ขั้น 3a–3c, 4d)                           | ✅ มีแล้วในระดับ Agent Skill (`complete-coding` skill 2 โหมด: Full Draft Mode + Targeted Q&A Mode, Humanizer scope, No RW optimisation) · 🟡 รอผูก backend LLM บน Web UI |
 | ตัวดึง attribute อัตโนมัติ (ขั้น 3a-3)                                              | ⬜ ต้องสร้าง (ปัจจุบันตรวจผ่าน reverse-decode check ใน skill) |
-| หน้าจอ review/approve + ลงนามอิเล็กทรอนิกส์ + audit log + e-Claim (ขั้น 6–10)        | 🟡 มีหน้าจอแล้ว (`app/discharges/` รายชื่อจำหน่าย + Audit/Sum with AI, `app/charts/[an]/discharge-summary/`, `app/charts/[an]/audit/`) · ⬜ รอระบบลงนามอิเล็กทรอนิกส์, audit log (10a) และส่ง e-Claim (9b) |
+| หน้าจอ review/approve + ลงนามอิเล็กทรอนิกส์ + audit log + e-Claim (ขั้น 6–10)        | 🟡 มีหน้าจอแล้ว (`app/discharges/` รายชื่อจำหน่ายและนำเข้า, `app/charts/[an]/query/`, `app/charts/[an]/coding/`, `app/charts/[an]/drg/`) · ⬜ รอระบบลงนามอิเล็กทรอนิกส์, audit log (10a) และส่ง e-Claim (9b) |
 
 ### 8.2 ชุด Agent Skills ที่ซิงก์คู่กัน (`.agents/skills/` และ `.claude/skills/`)
 
 | Skill | จังหวะที่ใช้ | สคริปต์ Deterministic หลัก | ผลลัพธ์ |
 |---|---|---|---|
-| **`chart-audit`** | **ก่อน** เขียน D/C Summary (ขณะอยู่หอผู้ป่วย/ก่อนจำหน่าย) | `scripts/scan-chart.ts` | รายงานความพร้อมชาร์ท + คำถามไม่ชี้นำ ≤ 5 ข้อ (ไม่มีรหัสเบิก/RW/บาท) |
-| **`discharge-summary`** | **ตอน/หลัง** เขียน D/C Summary | `scripts/chart.ts`, `scripts/lookup.ts`, `scripts/check-rules.ts` | Full Draft Mode (`assets/form.md`) หรือ Targeted Q&A Mode พร้อมตรวจสอบรหัส กฎ AI-Audit 18 ข้อ และ DRG variants |
+| **`pre-coding-query`** | ขั้น 1 **หลัง** แพทย์เขียน D/C Summary | `scripts/scan-chart.ts` (+ `lookup.ts`, `check-rules.ts` ของ `complete-coding`) | รหัสเบื้องต้นตามคำแพทย์ + query ไม่ชี้นำ ≤ 5 ข้อ (ไม่มี RW/บาทในคำถาม) |
+| **`complete-coding`** | ขั้น 2 หลังแพทย์ตอบ query | `scripts/chart.ts`, `scripts/lookup.ts`, `scripts/check-rules.ts` | Full Draft Mode (`assets/form.md`) หรือ Targeted Q&A Mode พร้อมตรวจสอบรหัส กฎ AI-Audit 18 ข้อ และ DRG variants |
 | **`thai-drg`** | คำนวณ/อธิบาย/เปรียบเทียบ TDRG 6.3 | `scripts/group.ts` | MDC, DC, DRG, PCL, RW, AdjRW, Err/Warn และบาท |
 
 **ลำดับงานถัดไปบน Web App:** นำตรรกะของ `scan-chart.ts` และ `check-rules.ts` ยกเป็น shared module ใต้ `lib/` เพื่อเรียกใช้ได้ทั้งจาก Agent Skills และจากหน้าจอ `app/charts/[an]/discharge-summary/` (ตรวจกฎก่อนลงนาม) จากนั้นเพิ่ม audit log (10a) และระบบลงนามอิเล็กทรอนิกส์

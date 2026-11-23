@@ -1,14 +1,14 @@
-// Run an agent on an imported chart from the command line, the same as the buttons on /discharges.
-// usage: node scripts/run-agent.ts <audit|dcsum> <AN>
+// Run an agent on an imported chart from the command line, the same as the AI buttons on a case page.
+// usage: node scripts/run-agent.ts <precode|dcsum> <AN>   (precode = step 1 pre-coding + query, dcsum = step 2 complete coding)
 import { db } from "../lib/db.ts";
-import { AGENT_MODEL, runAudit, runDischargeSummary } from "../lib/agent.ts";
+import { AGENT_MODEL, runDraft } from "../lib/agent.ts";
 
 const [kind, an] = process.argv.slice(2);
-if (!an || (kind !== "audit" && kind !== "dcsum")) throw new Error("usage: node scripts/run-agent.ts <audit|dcsum> <AN>");
+if (!an || (kind !== "precode" && kind !== "dcsum")) throw new Error("usage: node scripts/run-agent.ts <precode|dcsum> <AN>");
 
 console.log(`${kind} ${an} with ${AGENT_MODEL} ...`);
 const t0 = Date.now();
-const result = kind === "audit" ? await runAudit(an) : await runDischargeSummary(an);
+const result = await runDraft(an, kind);
 const run = (await db.query("select model, error, steps, usage, trace from agent_run where an = $1 and kind = $2 order by id desc limit 1", [an, kind])).rows[0];
 console.log(JSON.stringify(result, null, 2));
 if (run.error) console.log(`\nfell back after:\n${run.error}`);

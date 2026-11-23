@@ -1,22 +1,23 @@
-// The top of every page of one case: who the patient is, the two steps of the work as tabs with where each stands,
-// the AI actions for them, and the way to the next case waiting. Server component.
-import { ArrowLeft, ArrowRight, ClipboardCheck, FileText } from "lucide-react";
+// The top of every page of one case: who the patient is, the three steps of the work as tabs with where each stands,
+// the AI actions for the first two, and the way to the next case waiting. Server component.
+import { ArrowLeft, ArrowRight, FileText, MessageCircleQuestion, Scale } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auditStale, chartHref, chartRows, isPending, latestRuns } from "@/lib/charts.ts";
+import { approved, chartHref, chartRows, draftDrg, isPending, latestRuns, precodeStale, type AgentKind } from "@/lib/charts.ts";
 import { formatThaiDateTime } from "@/lib/thai-date.ts";
-import { AUDIT_STATUS, ageText, losDays } from "@/lib/ward.ts";
+import { ageText, losDays } from "@/lib/ward.ts";
 import { AgentButton } from "./agent-button.tsx";
-import { AUDIT_TONE, RunNote, dcStatus } from "./chart-table.tsx";
+import { RunNote, dcStatus, queryStatus } from "./chart-table.tsx";
 import { ImportButton } from "./import-button.tsx";
 import { Chip, PatientAvatar, card } from "./ui.tsx";
 
-export async function CaseHeader({ an, active }: { an: string; active: "audit" | "dcsum" }) {
+export async function CaseHeader({ an, active }: { an: string; active: AgentKind | "drg" }) {
   const rows = await chartRows();
   const p = rows.find((r) => r.an === an);
   if (!p) notFound();
   const runs = await latestRuns([an]);
-  const run = (kind: "audit" | "dcsum") => runs.find((r) => r.kind === kind);
+  const run = (kind: AgentKind) => runs.find((r) => r.kind === kind);
+  const drg = await draftDrg(p);
 
   // Next case: the pending one listed after this one, wrapping to the top; none when this is the only one left.
   const queue = rows.filter(isPending);
@@ -24,13 +25,16 @@ export async function CaseHeader({ an, active }: { an: string; active: "audit" |
   const next = at < 0 ? queue[0] : queue[at + 1] ?? queue.find((r) => r.an !== an);
 
   const dc = dcStatus({ pdx_text: p.pdx_text, local: p });
+  const q = queryStatus(p);
   const tabs = [
-    { key: "audit", href: `/charts/${an}/audit`, n: 1, label: "Audit ชาร์ท", icon: ClipboardCheck,
-      status: p.audit
-        ? <>{auditStale(p) && <Chip tone="amber">เก่ากว่าข้อมูล HIS</Chip>} <Chip tone={AUDIT_TONE[p.audit]}>{AUDIT_STATUS[p.audit]}</Chip></>
-        : <Chip tone="slate">ยังไม่ audit</Chip> },
-    { key: "dcsum", href: `/charts/${an}/discharge-summary`, n: 2, label: "D/C Summary และ DRG", icon: FileText,
+    { key: "precode", href: `/charts/${an}/query`, n: 1, label: "Pre-coding + Query", icon: MessageCircleQuestion, done: !!p.precode,
+      status: <>{precodeStale(p) && <Chip tone="amber">เก่ากว่าข้อมูล HIS</Chip>} <Chip tone={q.tone}>{q.label}</Chip></> },
+    { key: "dcsum", href: `/charts/${an}/coding`, n: 2, label: "Complete coding", icon: FileText, done: !!p.draft_model,
       status: <Chip tone={dc.tone}>{dc.label}</Chip> },
+    { key: "drg", href: `/charts/${an}/drg`, n: 3, label: "DRG / AdjRW", icon: Scale, done: approved(p),
+      status: approved(p)
+        ? <Chip tone="emerald">อนุมัติแล้ว · DRG {drg?.drg} · AdjRW {drg?.adjrw.toFixed(4)}</Chip>
+        : drg ? <Chip tone="violet">DRG {drg.drg} · AdjRW {drg.adjrw.toFixed(4)}</Chip> : <Chip tone="slate">ยังไม่มีรหัส</Chip> },
   ] as const;
 
   return (
@@ -62,7 +66,7 @@ export async function CaseHeader({ an, active }: { an: string; active: "audit" |
         <ImportButton an={an} again />
       </div>
 
-      <div className="grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2 dark:border-slate-800">
+      <div className="grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-3 dark:border-slate-800">
         {tabs.map((t) => {
           const current = t.key === active;
           return (
@@ -76,10 +80,12 @@ export async function CaseHeader({ an, active }: { an: string; active: "audit" |
                   <span className="mt-1 block">{t.status}</span>
                 </span>
               </Link>
-              <div className="flex flex-col items-end">
-                <AgentButton kind={t.key} an={an} again={t.key === "audit" ? !!p.audit : !!p.draft_model} running={run(t.key)?.status === "running"} />
-                <RunNote run={run(t.key)} />
-              </div>
+              {t.key !== "drg" && (
+                <div className="flex flex-col items-end">
+                  <AgentButton kind={t.key} an={an} again={t.done} running={run(t.key)?.status === "running"} />
+                  <RunNote run={run(t.key)} />
+                </div>
+              )}
             </div>
           );
         })}

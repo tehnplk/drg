@@ -3,11 +3,15 @@
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { runAgent } from "@/app/actions.ts";
+import type { AgentKind } from "@/lib/charts.ts";
 import { AgentProgress } from "./agent-progress.tsx";
 
-const LABEL = { audit: ["Audit with AI", "Audit with AI อีกครั้ง"], dcsum: ["Sum with AI", "Sum with AI อีกครั้ง"] } as const;
+const LABEL = {
+  precode: ["Pre-code with AI", "Pre-code with AI อีกครั้ง"],
+  dcsum: ["Complete with AI", "Complete with AI อีกครั้ง"],
+} as const;
 
-function Submit({ kind, an, again, running }: { kind: "audit" | "dcsum"; an: string; again: boolean; running: boolean }) {
+function Submit({ kind, an, again, running }: { kind: AgentKind; an: string; again: boolean; running: boolean }) {
   const { pending } = useFormStatus();
   const busy = pending || running;
   return (
@@ -26,7 +30,7 @@ function Submit({ kind, an, again, running }: { kind: "audit" | "dcsum"; an: str
 }
 
 // again: a result already exists, so this replaces it. running: a run of this kind is already going on the server.
-export function AgentButton({ kind, an, again = false, running = false }: { kind: "audit" | "dcsum"; an: string; again?: boolean; running?: boolean }) {
+export function AgentButton({ kind, an, again = false, running = false }: { kind: AgentKind; an: string; again?: boolean; running?: boolean }) {
   return (
     <form action={runAgent.bind(null, kind, an)}>
       <Submit kind={kind} an={an} again={again} running={running} />

@@ -1,14 +1,17 @@
-// Imported charts with where each one stands in the work (audit, discharge summary, latest agent runs). Server only.
+// Imported charts with where each one stands in the work (pre-coding + query, complete coding, approval, latest
+// agent runs). Server only.
 import { db } from "./db.ts";
 import { withName } from "./pii.ts";
 import { group, type Output } from "./tdrg/group.ts";
-import { LINE_ROLES, WARD_SCHEMA, toCase, type AuditStatus, type Draft, type Patient, type Reviews } from "./ward.ts";
+import { LINE_ROLES, WARD_SCHEMA, toCase, type Draft, type Patient, type Reviews } from "./ward.ts";
 
 export type ChartRow = Patient & {
   pdx_text: string | null; // the physician's principal diagnosis in the HIS D/C summary
   synced_at: string | null; sync_hash: string | null;
   draft: Draft | null; draft_at: string | null; draft_hash: string | null; draft_model: string | null; draft_version: number | null;
-  audit: AuditStatus | null; audit_at: string | null; audit_hash: string | null;
+  // step 1, Pre-coding + Query: the latest result and the review items already decided on it
+  precode: Draft | null; precode_at: string | null; precode_hash: string | null; precode_version: number | null;
+  precode_decided: string[] | null;
   // the approved coding (ward_final), null until someone approves
   final_at: string | null; final_hash: string | null; final_version: number | null; final_drg: string | null; final_adjrw: number | null;
 };
@@ -17,7 +20,9 @@ export type Final = { version: number; coded: { code: string; role: string }[]; 
   physician: string; license: string; coder: string; by: string; at: string };
 export type Version = { id: number; at: string; model: string | null };
 
-export type AgentRun = { an: string; kind: "audit" | "dcsum"; status: "running" | "done" | "error"; started_at: string; error: string | null; progress: string | null };
+// The two AI steps: 1 Pre-coding + Query, 2 Complete coding.
+export type AgentKind = "precode" | "dcsum";
+export type AgentRun = { an: string; kind: AgentKind; status: "running" | "done" | "error"; started_at: string; error: string | null; progress: string | null };
 
 // Every imported chart, or only the given ANs; the name decrypted, newest discharge first.
 export async function chartRows(ans?: string[]): Promise<ChartRow[]> {
@@ -27,9 +32,10 @@ export async function chartRows(ans?: string[]): Promise<ChartRow[]> {
        (select x.text from ward_dx_his x where x.an = p.an and x.form = 'DC Summary' and x.type = 'Principal Diagnosis'
         order by x.seq limit 1) pdx_text,
        d.draft, d.at draft_at, d.hash draft_hash, d.model draft_model, d.version draft_version,
-       a.status audit, a.at audit_at, a.hash audit_hash,
+       q.result precode, q.at precode_at, q.hash precode_hash, q.version precode_version,
+       (select array_agg(r.item) from ward_review r where r.version = q.version) precode_decided,
        f.at final_at, f.hash final_hash, f.version final_version, f.drg final_drg, f.adjrw final_adjrw
-     from ward_patient p left join ward_sync s using (an) left join ward_draft d using (an) left join ward_audit a using (an)
+     from ward_patient p left join ward_sync s using (an) left join ward_draft d using (an) left join ward_precode q using (an)
        left join ward_final f using (an)
      where $1::text[] is null or p.an = any($1)
      order by p.discharge_at desc, p.an`,
@@ -54,7 +60,10 @@ export async function latestRuns(ans: string[]): Promise<AgentRun[]> {
 
 // A draft made from older HIS data than the chart now holds; seeded demo drafts carry no hash and never go stale.
 export const draftStale = (r: ChartRow) => !!r.draft_hash && !!r.sync_hash && r.draft_hash !== r.sync_hash;
-export const auditStale = (r: ChartRow) => !!r.audit_hash && !!r.sync_hash && r.audit_hash !== r.sync_hash;
+export const precodeStale = (r: ChartRow) => !!r.precode_hash && !!r.sync_hash && r.precode_hash !== r.sync_hash;
+// Queries in the pre-coding still waiting for the physician's answer (a variant with a question and no decision).
+export const openQueries = (r: Pick<ChartRow, "precode" | "precode_decided">) =>
+  r.precode?.variants.filter((v, i) => v.question && !r.precode_decided?.includes(`variant:${i}`)).length ?? 0;
 export const hasDraft = (r: ChartRow) => !!r.draft?.lines.length;
 export const approved = (r: ChartRow) => !!r.final_at;
 // Approved, but the HIS content changed after it: the approval may no longer match the chart.
@@ -71,7 +80,7 @@ export async function reviewsOf(version: number | null): Promise<Reviews> {
 }
 
 // Every AI version of one kind for one chart, newest first.
-export async function versionsOf(an: string, kind: "audit" | "dcsum"): Promise<Version[]> {
+export async function versionsOf(an: string, kind: AgentKind): Promise<Version[]> {
   return (await db.query<Version>("select id, at, model from ward_history where an = $1 and kind = $2 order by id desc", [an, kind])).rows;
 }
 
@@ -80,8 +89,9 @@ export async function finalOf(an: string): Promise<Final | null> {
     "select version, coded, drg, rw, adjrw, physician, license, coder, by, at from ward_final where an = $1", [an])).rows[0] ?? null;
 }
 
-// The step a chart should open on: the audit until there is one, then the discharge summary.
-export const chartHref = (r: Pick<ChartRow, "an" | "audit">) => `/charts/${r.an}/${r.audit ? "discharge-summary" : "audit"}`;
+// The step a chart should open on: 1 query until it is pre-coded, 2 coding until there is a draft, then 3 drg.
+export const chartHref = (r: Pick<ChartRow, "an" | "precode" | "draft">) =>
+  `/charts/${r.an}/${!r.precode ? "query" : !r.draft?.lines.length ? "coding" : "drg"}`;
 
 // The DRG a list shows: the approved one once there is one, else the AI draft's (TypeScript grouper, local and instant).
 export async function draftDrg(r: ChartRow): Promise<Pick<Output, "drg" | "adjrw"> | null> {

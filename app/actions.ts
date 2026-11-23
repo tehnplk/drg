@@ -2,8 +2,8 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { nowBkk, runAudit, runDischargeSummary } from "@/lib/agent.ts";
-import { latestRuns, reviewsOf } from "@/lib/charts.ts";
+import { nowBkk, runDraft } from "@/lib/agent.ts";
+import { latestRuns, reviewsOf, type AgentKind } from "@/lib/charts.ts";
 import { db } from "@/lib/db.ts";
 import { importAdmission } from "@/lib/his.ts";
 import { group } from "@/lib/tdrg/group.ts";
@@ -19,11 +19,11 @@ const named = (value: unknown, what: string) => {
   return v;
 };
 
-// open: a first import goes straight on to the case's audit (one case at a time); a re-sync stays where it is.
+// open: a first import goes straight on to the case's step 1 (one case at a time); a re-sync stays where it is.
 export async function importChart(an: string, open = false) {
   checkAn(an);
   await importAdmission(an);
-  if (open) redirect(`/charts/${an}/audit`);
+  if (open) redirect(`/charts/${an}/query`);
   refresh();
 }
 
@@ -45,15 +45,16 @@ export async function importCharts(_: unknown, form: FormData) {
 }
 
 // Runs for a minute or two; the outcome (or the error) is kept in agent_run and shown on the list.
-export async function runAgent(kind: "audit" | "dcsum", an: string) {
+export async function runAgent(kind: AgentKind, an: string) {
   checkAn(an);
+  if (kind !== "precode" && kind !== "dcsum") throw new Error(`ขั้นตอนไม่ถูกต้อง: ${kind}`);
   // One run per chart and kind: a second click (another tab, or after coming back to the page) only refreshes.
   if ((await latestRuns([an])).some((r) => r.kind === kind && r.status === "running")) {
     refresh();
     return;
   }
   try {
-    await (kind === "audit" ? runAudit(an) : runDischargeSummary(an));
+    await runDraft(an, kind);
   } catch {
     // already recorded in agent_run; the list shows it
   }

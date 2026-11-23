@@ -4,13 +4,14 @@
 // the run's latest step every 1.5 s. With reduced motion the line appears whole.
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { AgentKind } from "@/lib/charts.ts";
 
 const POLL_MS = 1500;
 const TYPE_MS = 28;
 
 // When the run ends (done or failed), refreshes the page once so its result shows, then stops polling. Only after it
 // has seen the run going: right after a click the latest row can still be the previous, finished run.
-function useProgress(an: string, kind: "audit" | "dcsum") {
+function useProgress(an: string, kind: AgentKind) {
   const [text, setText] = useState("กำลังเริ่มงาน");
   const router = useRouter();
   useEffect(() => {
@@ -52,7 +53,7 @@ function useTyped(text: string) {
   return [...state.text].slice(0, state.shown).join("");
 }
 
-export function AgentProgress({ an, kind, className = "" }: { an: string; kind: "audit" | "dcsum"; className?: string }) {
+export function AgentProgress({ an, kind, className = "" }: { an: string; kind: AgentKind; className?: string }) {
   const text = useProgress(an, kind);
   const typed = useTyped(text);
   return (

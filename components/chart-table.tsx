@@ -1,11 +1,12 @@
 // The patient table both work lists show: identity, LOS, PDx and DRG, then where the chart stands in each step
-// (import → audit → D/C summary) with buttons to open the results. The AI is started from the case page only, where
-// the user works one case at a time; a run in progress shows its line here too. Server component.
-import { ArrowRight, ClipboardCheck, FileText } from "lucide-react";
+// (import → pre-coding + query → complete coding → DRG and approval) with buttons to open the results. The AI is
+// started from the case page only, where the user works one case at a time; a run in progress shows its line here
+// too. Server component.
+import { ArrowRight, FileText, MessageCircleQuestion } from "lucide-react";
 import Link from "next/link";
-import { approved, auditStale, chartHref, draftDrg, draftStale, finalStale, hasDraft, type AgentRun, type ChartRow } from "@/lib/charts.ts";
+import { approved, chartHref, draftDrg, draftStale, finalStale, hasDraft, openQueries, precodeStale, type AgentRun, type ChartRow } from "@/lib/charts.ts";
 import { formatThaiDateTime as when } from "@/lib/thai-date.ts";
-import { AUDIT_STATUS, ageText, LINE_ROLES, losDays, type AuditStatus, type Patient } from "@/lib/ward.ts";
+import { ageText, LINE_ROLES, losDays, type Patient } from "@/lib/ward.ts";
 import { AgentProgress } from "./agent-progress.tsx";
 import { BULK_FORM, ImportButton, SelectAll } from "./import-button.tsx";
 import { Chip, type Tone } from "./ui.tsx";
@@ -16,7 +17,13 @@ export type ChartItem = Pick<Patient, "an" | "hn" | "sex" | "age" | "age_day" | 
   local?: ChartRow; // set once the chart is imported
 };
 
-export const AUDIT_TONE: Record<AuditStatus, Tone> = { blocking: "rose", gaps: "amber", ready: "emerald" };
+// Step 1: whether the chart is pre-coded and how many queries still wait for the physician's answer.
+export function queryStatus(l?: ChartRow): { label: string; tone: Tone } {
+  if (!l) return { label: "ยังไม่นำเข้าชาร์ท", tone: "slate" };
+  if (!l.precode) return { label: "ยังไม่ทำ", tone: "slate" };
+  const open = openQueries(l);
+  return open ? { label: `รอคำตอบ ${open} ข้อ`, tone: "amber" } : { label: "ตอบครบ", tone: "emerald" };
+}
 
 export function dcStatus(i: Pick<ChartItem, "pdx_text" | "local">): { label: string; tone: Tone } {
   if (i.local && approved(i.local)) return finalStale(i.local)
@@ -43,12 +50,12 @@ export function RunNote({ run }: { run?: AgentRun }) {
 const StaleNote = () => <div className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">ข้อมูลจาก HIS เปลี่ยนหลังจากนี้ ควรทำใหม่</div>;
 // A small button to open a result (the audit report, the D/C draft).
 const viewBtn = "mt-1.5 flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium whitespace-nowrap text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 dark:text-indigo-300 dark:ring-indigo-500/30 dark:hover:bg-indigo-500/10";
-// imported: false for the HIS list (step 1), which shows only identity, the HIS summary state and import / Re-Sync;
-// the DRG, audit and AI columns belong to the work list (step 2).
+// imported: false for the HIS list, which shows only identity, the HIS summary state and import / Re-Sync;
+// the DRG, query and AI columns belong to the work list.
 export async function ChartTable({ items, runs, imported = true }: { items: ChartItem[]; runs: AgentRun[]; imported?: boolean }) {
   const drgs = await Promise.all(items.map((i) => (i.local ? draftDrg(i.local) : null)));
   const runOf = (an: string, kind: AgentRun["kind"]) => runs.find((r) => r.an === an && r.kind === kind);
-  const head = ["#", "วันที่จำหน่าย", "HN", "AN", "ชื่อ-นามสกุล", "LOS", "PDx", ...(imported ? ["DRG", "AdjRW", "Audit"] : []), "D/C summary", ""];
+  const head = ["#", "วันที่จำหน่าย", "HN", "AN", "ชื่อ-นามสกุล", "LOS", "PDx", ...(imported ? ["DRG", "AdjRW", "Query"] : []), "D/C summary", ""];
 
   return (
     <table className={`w-full text-left text-sm ${imported ? "min-w-[72rem]" : "min-w-[56rem]"}`}>
@@ -91,19 +98,15 @@ export async function ChartTable({ items, runs, imported = true }: { items: Char
               </td>
               <td className="px-3 py-3 font-mono">{drg ? drg.adjrw.toFixed(4) : "–"}</td>
               <td className="px-3 py-3">
-                {l?.audit ? (
+                <Chip tone={queryStatus(l).tone}>{queryStatus(l).label}</Chip>
+                {l?.precode && (
                   <>
-                    <Link href={`/charts/${it.an}/audit`} className="hover:opacity-80">
-                      <Chip tone={AUDIT_TONE[l.audit]}>{AUDIT_STATUS[l.audit]}</Chip>
-                    </Link>
-                    <div className="mt-0.5 text-xs text-slate-500">{when(l.audit_at ?? "")}</div>
-                    <Link href={`/charts/${it.an}/audit`} className={viewBtn}><ClipboardCheck className="size-3.5" /> ดูรายงาน</Link>
-                    {auditStale(l) && <StaleNote />}
+                    <div className="mt-0.5 text-xs text-slate-500">{when(l.precode_at ?? "")}</div>
+                    <Link href={`/charts/${it.an}/query`} className={viewBtn}><MessageCircleQuestion className="size-3.5" /> ดู Query</Link>
+                    {precodeStale(l) && <StaleNote />}
                   </>
-                ) : (
-                  <Chip tone="slate">{l ? "ยังไม่ audit" : "ยังไม่นำเข้าชาร์ท"}</Chip>
                 )}
-                <RunNote run={runOf(it.an, "audit")} />
+                <RunNote run={runOf(it.an, "precode")} />
               </td>
               </>}
               <td className="px-3 py-3">
@@ -111,7 +114,7 @@ export async function ChartTable({ items, runs, imported = true }: { items: Char
                 {l?.draft_at && (
                   <>
                     <div className="mt-0.5 text-xs text-slate-500">{when(l.draft_at)}</div>
-                    <Link href={`/charts/${it.an}/discharge-summary`} className={viewBtn}><FileText className="size-3.5" /> ดูร่าง</Link>
+                    <Link href={`/charts/${it.an}/coding`} className={viewBtn}><FileText className="size-3.5" /> ดูร่าง</Link>
                   </>
                 )}
                 {imported && <RunNote run={runOf(it.an, "dcsum")} />}

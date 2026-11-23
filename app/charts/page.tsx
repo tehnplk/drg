@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ChartTable } from "@/components/chart-table.tsx";
 import { IconTile, card } from "@/components/ui.tsx";
-import { chartRows, draftStale, hasDraft, isPending, latestRuns, type ChartRow } from "@/lib/charts.ts";
+import { chartRows, draftStale, hasDraft, isPending, latestRuns, openQueries, type ChartRow } from "@/lib/charts.ts";
 
 export const metadata: Metadata = { title: "รายการผู้ป่วยรอทำ D/C Sum" };
 
@@ -18,7 +18,7 @@ export default function ChartsPage(props: PageProps<"/charts">) {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">รายการผู้ป่วยรอทำ D/C Sum</h1>
             <p className="text-sm text-slate-500">
-              ชาร์ทที่นำเข้าจาก HIS แล้ว เปิดทีละเคสเพื่อ Audit และทำ D/C Summary ด้วย AI แล้วตรวจรหัสและ DRG
+              ชาร์ทที่นำเข้าจาก HIS แล้ว เปิดทีละเคส: Pre-coding + Query ถามแพทย์ → Complete coding → DRG / AdjRW และอนุมัติ
             </p>
           </div>
         </header>
@@ -30,14 +30,17 @@ export default function ChartsPage(props: PageProps<"/charts">) {
   );
 }
 
-// Every case still to do sits in exactly one step, by how far it got: a fresh AI draft waits for approval (3), else an
-// audited chart waits for Sum with AI (2), else it waits for the audit (1). A draft older than the HIS data needs Sum
-// again (2), and an approval the HIS data changed after needs review again (3). "todo" (all steps) is the default view.
+// Every case still to do sits in exactly one step, by how far it got: a fresh complete coding waits for approval (3),
+// else a pre-coded chart waits for the physician's answers (1) or for Complete coding (2), else it waits for the
+// pre-coding (1). A draft older than the HIS data needs Complete coding again (2), and an approval the HIS data changed
+// after needs review again (3). "todo" (all steps) is the default view.
 const freshDraft = (r: ChartRow) => hasDraft(r) && !draftStale(r);
+const before = (r: ChartRow) => isPending(r) && !freshDraft(r);
 const VIEWS = {
   todo: { label: "รอทำทั้งหมด", step: 0, match: isPending, empty: "ไม่มีเคสรอทำ ทุกชาร์ทที่นำเข้าอนุมัติรหัสจากข้อมูลล่าสุดแล้ว" },
-  noaudit: { label: "ยังไม่ audit", step: 1, match: (r: ChartRow) => isPending(r) && !freshDraft(r) && !r.audit, empty: "ไม่มีเคสที่รอ audit" },
-  sum: { label: "รอ Sum with AI", step: 2, match: (r: ChartRow) => isPending(r) && !freshDraft(r) && !!r.audit, empty: "ไม่มีเคสที่ audit แล้วรอ Sum with AI" },
+  noprecode: { label: "ยังไม่ Pre-code", step: 1, match: (r: ChartRow) => before(r) && !r.precode, empty: "ไม่มีเคสที่รอ Pre-code" },
+  query: { label: "รอคำตอบ Query", step: 1, match: (r: ChartRow) => before(r) && !!r.precode && openQueries(r) > 0, empty: "ไม่มีเคสที่รอแพทย์ตอบ Query" },
+  sum: { label: "รอ Complete coding", step: 2, match: (r: ChartRow) => before(r) && !!r.precode && !openQueries(r), empty: "ไม่มีเคสที่รอ Complete coding" },
   review: { label: "รออนุมัติ", step: 3, match: (r: ChartRow) => isPending(r) && freshDraft(r), empty: "ไม่มีร่างที่รออนุมัติ" },
   done: { label: "อนุมัติแล้ว", step: 4, match: (r: ChartRow) => !isPending(r), empty: "ยังไม่มีเคสที่อนุมัติรหัส" },
   all: { label: "ทั้งหมด", step: 0, match: () => true, empty: "" },
@@ -66,11 +69,11 @@ async function PatientList({ searchParams }: Pick<PageProps<"/charts">, "searchP
         {(Object.keys(VIEWS) as View[]).map((v) => {
           const { label, step, match } = VIEWS[v];
           const inView = rows.filter(match);
-          const blocking = step ? inView.filter((r) => r.audit === "blocking").length : 0;
+          const blocking = step ? inView.filter((r) => r.precode?.alerts.some((a) => a.level === "stop")).length : 0;
           const current = v === view;
           return (
             <span key={v} className="contents">
-              {(v === "noaudit" || v === "all") && <span aria-hidden className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />}
+              {(v === "noprecode" || v === "all") && <span aria-hidden className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />}
               <Link
                 href={v === "todo" ? "/charts" : `/charts?view=${v}`}
                 aria-current={current ? "page" : undefined}
