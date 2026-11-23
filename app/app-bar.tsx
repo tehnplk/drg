@@ -9,7 +9,7 @@ import { ReviewerField } from "@/components/reviewer.tsx";
 // In the order of the work: pick and import discharged patients, review their charts, then the DRG tool.
 const LINKS = [
   { href: "/discharges", label: "รายการผู้ป่วยใน HIS", icon: CalendarCheck },
-  { href: "/charts", label: "รายการผู้ป่วยรอทำ D/C Sum", icon: BedDouble },
+  { href: "/charts", label: "รายการรอให้รหัส", icon: BedDouble },
   { href: "/drg-calculator", label: "คำนวณ DRG", icon: Calculator },
 ];
 

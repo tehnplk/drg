@@ -55,7 +55,7 @@ const viewBtn = "mt-1.5 flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-
 export async function ChartTable({ items, runs, imported = true }: { items: ChartItem[]; runs: AgentRun[]; imported?: boolean }) {
   const drgs = await Promise.all(items.map((i) => (i.local ? draftDrg(i.local) : null)));
   const runOf = (an: string, kind: AgentRun["kind"]) => runs.find((r) => r.an === an && r.kind === kind);
-  const head = ["#", "วันที่จำหน่าย", "HN", "AN", "ชื่อ-นามสกุล", "LOS", "PDx", ...(imported ? ["DRG", "AdjRW", "Query"] : []), "D/C summary", ""];
+  const head = ["#", "วันที่จำหน่าย", "HN", "AN", "ชื่อ-นามสกุล", "LOS", "PDx", ...(imported ? ["DRG", "AdjRW", "Query"] : []), imported ? "Complete coding" : "D/C summary (แพทย์)", ""];
 
   return (
     <table className={`w-full text-left text-sm ${imported ? "min-w-[72rem]" : "min-w-[56rem]"}`}>

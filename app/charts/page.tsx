@@ -7,7 +7,7 @@ import { ChartTable } from "@/components/chart-table.tsx";
 import { IconTile, card } from "@/components/ui.tsx";
 import { chartRows, draftStale, hasDraft, isPending, latestRuns, openQueries, type ChartRow } from "@/lib/charts.ts";
 
-export const metadata: Metadata = { title: "รายการผู้ป่วยรอทำ D/C Sum" };
+export const metadata: Metadata = { title: "รายการรอให้รหัส" };
 
 export default function ChartsPage(props: PageProps<"/charts">) {
   return (
@@ -16,7 +16,7 @@ export default function ChartsPage(props: PageProps<"/charts">) {
         <header className="flex items-center gap-4">
           <IconTile icon={BedDouble} tone="indigo" size="lg" />
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">รายการผู้ป่วยรอทำ D/C Sum</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">รายการรอให้รหัส</h1>
             <p className="text-sm text-slate-500">
               ชาร์ทที่นำเข้าจาก HIS แล้ว เปิดทีละเคส: Pre-coding + Query ถามแพทย์ → Complete coding → DRG / AdjRW และอนุมัติ
             </p>
@@ -38,15 +38,15 @@ const freshDraft = (r: ChartRow) => hasDraft(r) && !draftStale(r);
 const before = (r: ChartRow) => isPending(r) && !freshDraft(r);
 const VIEWS = {
   todo: { label: "รอทำทั้งหมด", step: 0, match: isPending, empty: "ไม่มีเคสรอทำ ทุกชาร์ทที่นำเข้าอนุมัติรหัสจากข้อมูลล่าสุดแล้ว" },
-  noprecode: { label: "ยังไม่ Pre-code", step: 1, match: (r: ChartRow) => before(r) && !r.precode, empty: "ไม่มีเคสที่รอ Pre-code" },
+  noprecode: { label: "ยังไม่ Pre-coding", step: 1, match: (r: ChartRow) => before(r) && !r.precode, empty: "ไม่มีเคสที่รอ Pre-coding" },
   query: { label: "รอคำตอบ Query", step: 1, match: (r: ChartRow) => before(r) && !!r.precode && openQueries(r) > 0, empty: "ไม่มีเคสที่รอแพทย์ตอบ Query" },
   sum: { label: "รอ Complete coding", step: 2, match: (r: ChartRow) => before(r) && !!r.precode && !openQueries(r), empty: "ไม่มีเคสที่รอ Complete coding" },
   review: { label: "รออนุมัติ", step: 3, match: (r: ChartRow) => isPending(r) && freshDraft(r), empty: "ไม่มีร่างที่รออนุมัติ" },
-  done: { label: "อนุมัติแล้ว", step: 4, match: (r: ChartRow) => !isPending(r), empty: "ยังไม่มีเคสที่อนุมัติรหัส" },
+  done: { label: "อนุมัติแล้ว", step: 0, match: (r: ChartRow) => !isPending(r), empty: "ยังไม่มีเคสที่อนุมัติรหัส" },
   all: { label: "ทั้งหมด", step: 0, match: () => true, empty: "" },
 } as const;
 type View = keyof typeof VIEWS;
-const STEP_MARK = ["", "①", "②", "③", "④"];
+const STEP_MARK = ["", "①", "②", "③"];
 
 async function PatientList({ searchParams }: Pick<PageProps<"/charts">, "searchParams">) {
   await connection();

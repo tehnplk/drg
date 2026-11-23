@@ -7,7 +7,7 @@ import type { AgentKind } from "@/lib/charts.ts";
 import { AgentProgress } from "./agent-progress.tsx";
 
 const LABEL = {
-  precode: ["Pre-code with AI", "Pre-code with AI อีกครั้ง"],
+  precode: ["Pre-coding with AI", "Pre-coding with AI อีกครั้ง"],
   dcsum: ["Complete with AI", "Complete with AI อีกครั้ง"],
 } as const;
 

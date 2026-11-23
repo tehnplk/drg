@@ -23,7 +23,7 @@ export default function DischargesPage(props: PageProps<"/discharges">) {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">รายการผู้ป่วยใน HIS</h1>
             <p className="text-sm text-slate-500">
-              ผู้ป่วยในที่จำหน่ายในช่วงวันที่ ดึงสดจาก HIS นำเข้าชาร์ททีละคน หรือติ๊กเลือกหลายรายแล้วนำเข้าพร้อมกัน แล้วทำ Audit และ D/C Summary ด้วย AI
+              ผู้ป่วยในที่จำหน่ายในช่วงวันที่ ดึงสดจาก HIS นำเข้าชาร์ททีละคน หรือติ๊กเลือกหลายรายแล้วนำเข้าพร้อมกัน แล้วทำ Pre-coding + Query และ Complete coding ด้วย AI
             </p>
           </div>
         </header>
@@ -81,7 +81,7 @@ async function DischargedList({ searchParams }: Pick<PageProps<"/discharges">, "
           </h2>
           <span className="text-sm text-slate-500">
             ทั้งหมด {his.length} ราย · ยังไม่นำเข้า {his.length - local.size} ราย · นำเข้าแล้ว {local.size} ราย
-            {local.size > 0 && <> (ทำงานต่อที่ <Link href="/charts" className="text-indigo-600 hover:underline dark:text-indigo-300">รายการผู้ป่วยรอทำ D/C Sum</Link>)</>}
+            {local.size > 0 && <> (ทำงานต่อที่ <Link href="/charts" className="text-indigo-600 hover:underline dark:text-indigo-300">รายการรอให้รหัส</Link>)</>}
           </span>
           {his.length === MAX_DISCHARGED && (
             <span className="text-sm text-amber-700 dark:text-amber-300">แสดงแค่ {MAX_DISCHARGED} รายแรก ให้แคบช่วงวันที่ลง</span>

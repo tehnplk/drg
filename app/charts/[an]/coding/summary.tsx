@@ -209,7 +209,7 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
         <div className="min-w-0 lg:col-span-3">{header}</div>
 
         <div className="grid min-w-0 content-start gap-6">
-          <nav aria-label="ส่วนของร่าง D/C Summary" className={`sticky top-[4.5rem] z-10 grid gap-2 p-3 ${card}`}>
+          <nav aria-label="ส่วนของหน้านี้" className={`sticky top-[4.5rem] z-10 grid gap-2 p-3 ${card}`}>
             <div className={`grid grid-cols-2 gap-2 ${steps.length > 2 ? "sm:grid-cols-4" : ""}`}>
               {steps.map(([id, label, Icon, tone], i) => (
                 <a key={id} href={`#${id}`} className="flex items-center justify-center gap-2 rounded-xl p-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50 sm:justify-start dark:ring-slate-800 dark:hover:bg-slate-800/50">

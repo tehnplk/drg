@@ -41,7 +41,7 @@ export async function CaseHeader({ an, active }: { an: string; active: AgentKind
     <header className={`grid gap-4 p-5 ${card}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <Link href="/charts" className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400">
-          <ArrowLeft className="size-4" /> รายการผู้ป่วยรอทำ D/C Sum
+          <ArrowLeft className="size-4" /> รายการรอให้รหัส
         </Link>
         {next && (
           <Link href={chartHref(next)} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 dark:text-slate-200 dark:ring-slate-700 dark:hover:bg-slate-800">

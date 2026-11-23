@@ -13,7 +13,7 @@ const LATEST = {
 } satisfies Record<AgentKind, string>;
 
 const EMPTY = {
-  precode: ["ยังไม่มี Pre-coding + Query จาก AI", "Pre-code with AI"],
+  precode: ["ยังไม่มี Pre-coding + Query จาก AI", "Pre-coding with AI"],
   dcsum: ["ยังไม่มีร่าง Complete coding จาก AI", "Complete with AI"],
 } satisfies Record<AgentKind, [string, string]>;
 
