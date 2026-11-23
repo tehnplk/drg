@@ -5,7 +5,7 @@ import { compile, makeHelpers, type Ctx, type Pred, type Proc } from "./cond.ts"
 import { loadData, type Data, type DxRow } from "./data.ts";
 import { computePcl } from "./pcl.ts";
 
-// Thai DRG 6.3 grouper (TDRG 6.3.3 manual + TGrp6305 library tables).
+// Thai DRG 6.3 grouper, edition 6.3.4 (TDRG 6.3.3 manual + TGrp6305 library tables, which carry the 6.3.4 codes).
 
 export type Input = {
   an?: string;

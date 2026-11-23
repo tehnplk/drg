@@ -8,6 +8,10 @@
 
 ## 1. Code and data layout
 
+Edition in use: **TDRG 6.3.4**, the current official one. It is the 6.3.3 manual plus 20 COVID-19 vaccine codes
+(U119 → MDC 23 / PDC 23D; U129–U309 not acceptable as PDx), with no change to DRGs, RW, WtLOS, OT, CC or DCL
+(TCMC, 23 Feb 2564). The TGrp6305 tables already carry them, so the manual tables below stay 6.3.3.
+
 | Path | What |
 |---|---|
 | `lib/tdrg/group.ts` | Main flow: edits → Pre-MDC → MDC 24/25/15 → MDC by PDx → UORP (Appendix D) → DC → PCL → DRG → AdjRW |

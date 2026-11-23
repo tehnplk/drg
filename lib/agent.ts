@@ -10,12 +10,14 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { extractJsonMiddleware, generateText, isStepCount, Output, tool, wrapLanguageModel, type LanguageModel } from "ai";
 import { z } from "zod";
 import { db } from "./db.ts";
-import { LINE_ROLES, WARD_SCHEMA, type AuditStatus, type Draft, type LineType } from "./ward.ts";
+import { followPhysician, LINE_ROLES, WARD_SCHEMA, type AuditStatus, type Draft, type HisDx, type LineType } from "./ward.ts";
 
 try { process.loadEnvFile(".env"); } catch { /* Next loads .env itself */ }
 
 export const AGENT_MODEL = process.env.AGENT_MODEL ?? "anthropic/claude-opus-5.5";
-const FALLBACK_MODEL = process.env.AGENT_FALLBACK_MODEL ?? "deepseek-v4-pro";
+// deepseek-flash is DeepSeek's alias for its latest Flash, DeepSeek-V4.1-Flash-1017 since 17 Oct 2026; the API
+// accepts no versioned id. deepseek-v4-pro is the other model the key can use.
+const FALLBACK_MODEL = process.env.AGENT_FALLBACK_MODEL ?? "deepseek-flash";
 const MAX_STEPS = 40;
 const SKILLS = path.join(process.cwd(), ".claude", "skills");
 
@@ -67,7 +69,31 @@ with these adjustments for this app (they override the skill where they differ):
 - Return the result in the structured output format instead of a markdown reply. The app saves and displays it.
 - Write the result in Thai, keeping codes, official code names and medical terms in English, as the skill says.
 - Write dates as short Thai dates with the Buddhist-era year, and times as 24-hour HH:MM: "19 พ.ย. 2569 23:30",
-  or "19 พ.ย." when the year is clear. The chart prints dates as YYYY-MM-DD (Gregorian): add 543 to the year.`;
+  or "19 พ.ย." when the year is clear. The chart prints dates as YYYY-MM-DD (Gregorian): add 543 to the year.
+- Staff read every word of the result. Never name a script, file, tool or skill (no "lookup.ts", "check-rules",
+  "SKILL.md", "skill discharge-summary"). Say what was checked instead: "ตรวจกับฐานรหัส ICD-10-TM",
+  "ตรวจกฎ audit และ MRA", "จัดกลุ่ม Thai DRG".`;
+
+// The same rule after the fact, for results saved before it or a model that slips: script, file and skill names
+// in the result's text become what they did. Applied where results are shown.
+const STAFF_WORDS: [RegExp, string][] = [
+  [/`?(?:[\w-]+\/scripts\/)?scan-chart(?:\.ts)?`?/gi, "การสแกนชาร์ท"],
+  [/`?(?:[\w-]+\/scripts\/)?check-rules(?:\.ts)?`?/gi, "เกณฑ์ audit และ MRA"],
+  [/`?(?:[\w-]+\/scripts\/)?lookup\.ts`?/gi, "ฐานรหัส ICD-10-TM / ICD-9-CM"],
+  [/`?(?:[\w-]+\/scripts\/)?group\.ts`?/gi, "ตัวจัดกลุ่ม Thai DRG"],
+  [/`?(?:[\w-]+\/scripts\/)?save-audit\.ts`?/gi, "การบันทึกผล"],
+  [/`?(?:[\w-]+\/scripts\/)?chart\.ts`?/gi, "ข้อมูลชาร์ท"],
+  [/(?:ด้วย |ตาม )?skill `?chart-audit`?/gi, "ตามเกณฑ์ Audit ชาร์ท"],
+  [/(?:ด้วย |ตาม )?skill `?discharge-summary`?/gi, "ในขั้น D/C Summary"],
+  [/(?:ด้วย |ตาม )?skill `?thai-drg`?/gi, "ตามเกณฑ์ Thai DRG"],
+  [/`?[\w/-]+\.(?:ts|md)`?/g, "เกณฑ์ของระบบ"],
+];
+export const staffWords = <T>(value: T): T =>
+  JSON.parse(STAFF_WORDS.reduce((s, [re, to]) => s.replace(re, to), JSON.stringify(value)));
+
+// One agent step in staff words, for the record of what the AI did (no script names).
+export const stepLabel = (script: string, args: string[]) =>
+  (SCRIPTS[script as Script]?.progress(args) ?? "ใช้เครื่องมือของระบบ").replace(/^กำลัง/, "");
 
 // ── The one tool: the skill's own scripts ───────────────────────────────────
 // progress: the line the screen shows while the script runs (agent_run.progress). No patient data in it.
@@ -155,7 +181,8 @@ const CODE = /^([A-Z]\d{2}(\.\d{1,4})?|\d{2}(\.\d{1,2})?(\+\d{1,3})?|C[A-Z]?\d{3
 // Variants feed the grouper, so anything in add/remove/swap that is not a bare code is dropped and flagged,
 // and a variant left with neither a change nor a question is dropped.
 function toDraft(d: z.infer<typeof DraftSchema>): Draft {
-  const alerts = [...d.alerts];
+  // "ไม่มี — no hard stop" is not an alert: shown as one it reads as a red stop with nothing in it.
+  const alerts = d.alerts.filter((a) => !/^\s*(ไม่มี|ไม่พบ)/.test(a.text));
   const ok = (label: string) => (c: string) => CODE.test(c.trim()) || (alerts.push({ level: "warn", text: `ตัวเลือก "${label}" มีค่าที่ไม่ใช่รหัส ("${c}") จึงตัดออก` }), false);
   const variants = d.variants.flatMap((v) => {
     const add = v.add.filter(ok(v.label)), remove = v.remove.filter(ok(v.label));
@@ -262,7 +289,13 @@ not_coded = 2.2, alerts = 2.3, variants = 2.4 with their 2.5 questions. The app 
 so run thai-drg to check your coding but do not put DRG numbers in the result.
 Variants: the app shows your lines as draft A, so never repeat A as a variant. Each variant is one alternative answer
 with bare codes only (one code per string, no "or", no prose): make a separate variant for each alternative code.
-To make another code the PDx, swap both ways, e.g. swap [{from:"E11.9",to:"I10"},{from:"I10",to:"E11.9"}].`),
+To make another code the PDx, swap both ways, e.g. swap [{from:"E11.9",to:"I10"},{from:"I10",to:"E11.9"}].
+Draft A follows the physician (coders query, they do not rewrite): keep the PDx the physician entered on the HIS
+discharge summary, and put in A only diagnoses the physician entered. A different PDx, or a diagnosis the chart supports
+but the physician did not enter, is a variant with a non-leading question. The app enforces this when it saves.
+Clinical summary: write only what the chart records. Never add advice, warning signs to come back for, targets, plans
+or appointments that no note records; where the chart has none, write "ยังไม่ได้ระบุ — รอแพทย์ยืนยัน".
+Leave out alerts that only say nothing was found (e.g. "ไม่มี hard stop").`),
       prompt: `Draft the discharge summary for AN ${an}.${audit ? `\n\nThe chart audit already done for this AN, for context:\n${audit.report}` : ""}`,
       tools: { run_skill_script: skillScriptTool(an, Object.keys(SCRIPTS) as Script[], trace, say) },
       output: Output.object({ schema: DraftSchema }),
@@ -270,7 +303,8 @@ To make another code the PDx, swap both ways, e.g. swap [{from:"E11.9",to:"I10"}
       onStepStart: ({ stepNumber }) => (stepNumber ? say(THINKING) : undefined),
     });
     await say("กำลังบันทึกผล");
-    const draft = toDraft(r.output);
+    const his = (await db.query<HisDx>("select type, text, icd10 from ward_dx_his where an = $1 and form = 'DC Summary' order by seq", [an])).rows;
+    const draft = followPhysician(toDraft(r.output), his);
 
     // A code the tables do not know cannot be grouped or named on screen: flag it instead of trusting it.
     const codes = [...new Set([...draft.lines.map((l) => l.code), ...draft.variants.flatMap((v) => [...(v.change.add ?? []), ...Object.values(v.change.swap ?? {})])])];

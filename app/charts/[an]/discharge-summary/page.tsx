@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { CaseHeader } from "@/components/case-header.tsx";
+import { staffWords } from "@/lib/agent.ts";
 import { db } from "@/lib/db.ts";
 import { withName } from "@/lib/pii.ts";
 import type { Draft, Note, Patient } from "@/lib/ward.ts";
@@ -26,7 +27,8 @@ async function Chart({ params }: Pick<PageProps<"/charts/[an]/discharge-summary"
   const patient = withName(row) as Patient;
   const notes = (await db.query<Note>("select at, kind, author, body from ward_note where an = $1 order by seq", [an])).rows;
   // Charts imported from the HIS have no draft until one is written for them.
-  const draft: Draft = (await db.query<{ draft: Draft }>("select draft from ward_draft where an = $1", [an])).rows[0]?.draft ?? {
+  const saved = (await db.query<{ draft: Draft }>("select draft from ward_draft where an = $1", [an])).rows[0]?.draft;
+  const draft: Draft = saved ? staffWords(saved) : {
     lines: [], summary: ["", "", "", "", ""], notCoded: [], variants: [],
     alerts: [{ level: "suggest", text: "ยังไม่มีร่าง D/C Summary ของเคสนี้ กด \"Sum with AI\" ที่ขั้นที่ 2 ด้านบน ใช้เวลาประมาณ 1–3 นาที" }],
   };

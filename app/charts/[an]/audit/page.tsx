@@ -5,7 +5,7 @@ import { Suspense, type ReactNode } from "react";
 import { CaseHeader } from "@/components/case-header.tsx";
 import { AUDIT_TONE as TONE } from "@/components/chart-table.tsx";
 import { Chip, IconTile, card, type Tone } from "@/components/ui.tsx";
-import type { AuditResult } from "@/lib/agent.ts";
+import { staffWords, stepLabel, type AuditResult } from "@/lib/agent.ts";
 import { db } from "@/lib/db.ts";
 import { formatThaiDateTime } from "@/lib/thai-date.ts";
 import { AUDIT_STATUS, type AuditStatus } from "@/lib/ward.ts";
@@ -55,7 +55,8 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
 async function Report({ params }: Pick<PageProps<"/charts/[an]/audit">, "params">) {
   await connection();
   const { an } = await params;
-  const audit = (await db.query<Audit>("select status, at, model, hash, result, report from ward_audit where an = $1", [an])).rows[0];
+  const saved = (await db.query<Audit>("select status, at, model, hash, result, report from ward_audit where an = $1", [an])).rows[0];
+  const audit = saved && staffWords(saved);
   const sync = (await db.query<{ hash: string }>("select hash from ward_sync where an = $1", [an])).rows[0];
   const run = (await db.query<Run>(
     "select steps, usage, trace, started_at, finished_at from agent_run where an = $1 and kind = 'audit' and status = 'done' order by id desc limit 1", [an])).rows[0];
@@ -116,15 +117,15 @@ async function Report({ params }: Pick<PageProps<"/charts/[an]/audit">, "params"
         <section className={`grid gap-2 p-5 text-sm text-slate-600 dark:text-slate-300 ${card}`}>
           <h2 className="flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-50"><IconTile icon={Sparkles} tone="slate" size="sm" />ที่มาของผลนี้</h2>
           <p>
-            {audit.model ? <>AI ({audit.model}) ทำตาม skill <span className="font-mono">chart-audit</span> เมื่อ {formatThaiDateTime(audit.at)}</> : <>บันทึกด้วยมือเมื่อ {formatThaiDateTime(audit.at)}</>}
+            {audit.model ? <>AI ({audit.model}) ตรวจตามเกณฑ์ Audit ชาร์ทก่อนจำหน่าย เมื่อ {formatThaiDateTime(audit.at)}</> : <>บันทึกด้วยมือเมื่อ {formatThaiDateTime(audit.at)}</>}
             {run?.steps != null && <> · {run.steps} รอบ · token เข้า {run.usage?.inputTokens?.toLocaleString() ?? "-"} / ออก {run.usage?.outputTokens?.toLocaleString() ?? "-"}</>}
           </p>
           {!!run?.trace?.length && (
             <ul className="grid gap-1">
               {run.trace.map((t, i) => (
-                <li key={i} className="flex items-start gap-2 font-mono text-xs">
+                <li key={i} className="flex items-start gap-2 text-xs">
                   <Wrench className="mt-0.5 size-3.5 shrink-0 text-slate-400" />
-                  <span className={t.ok ? "" : "text-rose-600"}>{t.script} {t.args.join(" ").slice(0, 100)} · {(t.ms / 1000).toFixed(1)} s</span>
+                  <span className={t.ok ? "" : "text-rose-600"}>{stepLabel(t.script, t.args)}{t.ok ? "" : " (ไม่สำเร็จ)"} · {(t.ms / 1000).toFixed(1)} วินาที</span>
                 </li>
               ))}
             </ul>

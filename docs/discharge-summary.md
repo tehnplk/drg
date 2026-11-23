@@ -71,7 +71,7 @@
 
 ## 4. Thai DRG ใช้ข้อมูลใน summary อย่างไร
 
-ข้อมูลส่วนนี้มาจากคู่มือ TDRG 6.3.3 และตรงกับผลของโปรแกรม TGrp6305 ที่ใช้คำนวณจริง
+ข้อมูลส่วนนี้มาจากคู่มือ TDRG 6.3.3 และตรงกับผลของโปรแกรม TGrp6305 ที่ใช้คำนวณจริง ระบบใช้ TDRG ฉบับ 6.3.4 ซึ่งเป็นฉบับทางการปัจจุบัน ฉบับนี้เพิ่มเฉพาะรหัสวัคซีน COVID-19 จำนวน 20 รหัส (U119–U309) โดยไม่เปลี่ยนกลุ่ม DRG ค่า RW หรือ CC
 
 ### 4.1 ขั้นตอนหา DRG
 
@@ -258,7 +258,7 @@
 ## แหล่งอ้างอิง
 
 - สปสช.–สภาการพยาบาล–สรพ. *คู่มือแนวทางการบันทึกและตรวจประเมินคุณภาพการบันทึกเวชระเบียน (Medical Record Audit Guideline)* ส่วนผู้ป่วยใน — [ฉบับเผยแพร่โดยคณะแพทยศาสตร์ มช.](https://w2.med.cmu.ac.th/medrec/files/download/mra_guideline_ipd.pdf), [ฉบับปรับปรุง 2557 (รพ.ตำรวจ)](https://www.policehospital.org/ckfinder/userfiles/images_pghfiles/PDF/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%20MRA%20Guideline_2557%E0%B8%89%E0%B8%9A%E0%B8%B1%E0%B8%9A%E0%B8%9B%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B8%9B%E0%B8%A3%E0%B8%B8%E0%B8%87.pdf), [คู่มือ MRA 2563 IPD (รามาธิบดี)](https://www.rama.mahidol.ac.th/medicalrecord/sites/default/files/public/pdf/2021/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD_MRA_2563_IPD_gen_ps.pdf), [เกณฑ์ IPD (ศิริราช)](https://med.mahidol.ac.th/medicalrecord/th/standard_ipd)
-- สำนักพัฒนากลุ่มโรคร่วมไทย (สรท.) *การจัดกลุ่มวินิจฉัยโรคร่วมไทยและน้ำหนักสัมพัทธ์ ฉบับ 6.3.3* [เล่ม 1](https://www.tcmc.or.th/_content_images/download/fileupload/S0091.pdf), [เล่ม 2](https://www.tcmc.or.th/_content_images/download/fileupload/S0092.pdf), [หน้าดาวน์โหลด](https://www.tcmc.or.th/download-tcmc)
+- สำนักพัฒนากลุ่มโรคร่วมไทย (สรท.) *การจัดกลุ่มวินิจฉัยโรคร่วมไทยและน้ำหนักสัมพัทธ์ ฉบับ 6.3.3* [เล่ม 1](https://www.tcmc.or.th/_content_images/download/fileupload/S0091.pdf), [เล่ม 2](https://www.tcmc.or.th/_content_images/download/fileupload/S0092.pdf), [หน้าดาวน์โหลด](https://www.tcmc.or.th/download-tcmc), [สรุปการเปลี่ยนแปลงเป็นฉบับ 6.3.4](https://tcmc.or.th/main/phocadownload/TDRG6.3.4/2SumChange4TDRGVer633To634.pdf)
 - พญ.นิภาพร อรุณวรากร, *การสรุปเวชระเบียน 2020 Case Medicine*, รพ.ชัยนาทนเรนทร (เอกสารสอนภายใน) — [PDF](https://chainathospital.org/chainatweb/file_store_path/20200721105629-74-8724.pdf), ฉบับผู้ป่วยเด็ก/ทารก [PDF](https://www.chainathospital.org/chainatweb/file_store_path/20190826110539-54-40658.pdf)
 - [คู่มือการวินิจฉัยโรค (Manual diag code)](https://www.slideshare.net/slideshow/manual-diag-code/88920182)
 - [Validity of discharge summaries and codings in Thailand (PMC5688029)](https://pmc.ncbi.nlm.nih.gov/articles/PMC5688029) — ไทยใช้หลัก reason for admission และพบความผิดพลาดบ่อยในหมวด external cause และ factors influencing health status

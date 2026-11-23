@@ -171,7 +171,81 @@ export function applyChange(coded: Coded[], { add = [], remove = [], swap = {} }
   ];
 }
 
-export const ageText = (p: Pick<Patient, "age" | "age_day">) => (p.age ? `${p.age} ปี` : `${p.age_day} วัน`);
+// A diagnosis the physician entered on the HIS discharge summary (ward_dx_his, form "DC Summary").
+export type HisDx = { type: string; text: string; icd10: string };
+
+const bare = (c: string) => c.replace(/\+.*$/, "").replace(/\./g, "").toUpperCase(); // E11.9 -> E119
+const dotted = (c: string) => (c.length > 3 ? `${c.slice(0, 3)}.${c.slice(3)}` : c); // E119 -> E11.9
+
+// The coder's rule (Standard Coding Guidelines; coders query, they do not rewrite): draft A keeps the physician's PDx,
+// and a diagnosis the physician did not enter is a query, not part of A. Where the AI broke this, A is put back and
+// the AI's proposal becomes a variant with a question. Procedures and external causes are the coder's own work and stay.
+// A diagnosis counts as the physician's when its ICD-10 category matches one they entered (the code may be more
+// specific). No HIS discharge summary yet: the draft is the proposal for the physician, nothing to follow.
+export function followPhysician(d: Draft, his: HisDx[]): Draft {
+  const coded = his.filter((h) => h.icd10);
+  const hisPdx = coded.find((h) => /principal/i.test(h.type));
+  if (!hisPdx) return d;
+  const pdxCode = bare(hisPdx.icd10);
+  const theirs = new Set(coded.map((h) => bare(h.icd10).slice(0, 3)));
+  const isTheirs = (l: Line) => theirs.has(bare(l.code).slice(0, 3));
+  const role = (l: Line) => LINE_ROLES[l.type];
+
+  let lines = d.lines.map((l) => ({ ...l }));
+  let variants = d.variants.map((v) => ({ ...v, change: { ...v.change } }));
+  const alerts = [...d.alerts];
+  const added: Variant[] = [];
+  // A question the AI already wrote for this change, taken over with its variant (the variant itself is replaced).
+  const takeQuestion = (match: (v: Variant) => boolean) => {
+    const v = variants.find(match);
+    variants = variants.filter((x) => x !== v);
+    return v?.question;
+  };
+
+  const aiPdx = lines.find((l) => role(l) === "pdx");
+  if (!aiPdx || bare(aiPdx.code) !== pdxCode) {
+    let mine = lines.find((l) => bare(l.code) === pdxCode);
+    if (!mine) lines.unshift(mine = { type: "Principal diagnosis", text: hisPdx.text, code: dotted(pdxCode), status: "ambiguous",
+      evidence: "แพทย์ลงเป็นการวินิจฉัยหลักในใบสรุปการจำหน่าย (HIS) — AI ไม่ได้ตรวจรหัสนี้กับชาร์ท ต้องตรวจก่อนยืนยัน" });
+    mine.type = "Principal diagnosis";
+    if (aiPdx) {
+      const both = (v: Variant) => !!v.change.swap && [aiPdx.code, mine!.code].every((c) => Object.keys(v.change.swap!).includes(c));
+      const question = takeQuestion(both) ?? `แพทย์ลงการวินิจฉัยหลักเป็น "${hisPdx.text}" ขณะที่ชาร์ทอาจสนับสนุน "${aiPdx.text}" เป็นเหตุผลหลักของการรับไว้ — ภาวะใดเป็นเหตุผลหลักของการนอนโรงพยาบาลครั้งนี้ (${hisPdx.text} / ${aiPdx.text} / อื่น ๆ / ตัดสินไม่ได้จากชาร์ท)`;
+      if (isTheirs(aiPdx)) {
+        aiPdx.type = "Comorbidity";
+        added.push({ label: `PDx เป็น ${aiPdx.text} (${aiPdx.code}) ตามที่ AI เสนอ`, change: { swap: { [mine.code]: aiPdx.code, [aiPdx.code]: mine.code } }, question, to: "แพทย์ผู้รักษา" });
+      } else {
+        lines = lines.filter((l) => l !== aiPdx);
+        added.push({ label: `PDx เป็น ${aiPdx.text} (${aiPdx.code}) ตามที่ AI เสนอ`, change: { swap: { [mine.code]: aiPdx.code } }, question, to: "แพทย์ผู้รักษา" });
+      }
+      alerts.push({ level: "warn", text: `AI เสนอการวินิจฉัยหลักเป็น ${aiPdx.code} ต่างจากที่แพทย์ลงไว้ (${mine.code}) — ร่าง A คงตามแพทย์ เพราะ coder ไม่แก้การวินิจฉัยของแพทย์ ข้อเสนอของ AI อยู่ในตัวเลือกพร้อมคำถามถึงแพทย์` });
+    }
+  }
+
+  // Secondary diagnoses the physician did not enter leave A; variants that changed them now add them instead.
+  const out = lines.filter((l) => role(l) === "sdx" && !isTheirs(l));
+  lines = lines.filter((l) => !out.includes(l));
+  const gone = new Set(out.map((l) => l.code));
+  variants = variants.flatMap((v) => {
+    const swap = Object.entries(v.change.swap ?? {});
+    const add = [...(v.change.add ?? []), ...swap.filter(([from]) => gone.has(from)).map(([, to]) => to)];
+    const remove = (v.change.remove ?? []).filter((c) => !gone.has(c));
+    const kept = swap.filter(([from]) => !gone.has(from));
+    const change = { ...(add.length ? { add } : {}), ...(remove.length ? { remove } : {}), ...(kept.length ? { swap: Object.fromEntries(kept) } : {}) };
+    return Object.keys(change).length || v.question ? [{ ...v, change }] : [];
+  });
+  for (const l of out) {
+    const question = takeQuestion((v) => !!v.change.add?.includes(l.code) && Object.keys(v.change).length === 1)
+      ?? `ชาร์ทมีข้อมูลเรื่อง "${l.text}" (${l.evidence}) แต่ใบสรุปการจำหน่ายของแพทย์ไม่ได้ลงการวินิจฉัยนี้ — จะลงเป็นการวินิจฉัยหรือไม่ (ลง / ไม่ลง / เป็นภาวะอื่น / ตัดสินไม่ได้จากชาร์ท)`;
+    added.push({ label: `เพิ่ม ${l.text} (${l.code})`, change: { add: [l.code] }, question, to: "แพทย์ผู้รักษา" });
+  }
+  if (out.length) alerts.push({ level: "warn", text: `AI พบการวินิจฉัยที่แพทย์ไม่ได้ลงในใบสรุป (${out.map((l) => l.code).join(", ")}) — ไม่ใส่ในร่าง A ย้ายไปเป็นตัวเลือกพร้อมคำถามถึงแพทย์` });
+
+  lines = [...lines.filter((l) => role(l) === "pdx"), ...lines.filter((l) => role(l) !== "pdx")]; // PDx first
+  return { ...d, lines, alerts, variants: [...added, ...variants] };
+}
+
+export const ageText =(p: Pick<Patient, "age" | "age_day">) => (p.age ? `${p.age} ปี` : `${p.age_day} วัน`);
 
 // TDRG LOS: calendar days between admission and discharge, minus leave days.
 export function losDays(p: Pick<Patient, "admit_at" | "discharge_at" | "leave_days">) {
