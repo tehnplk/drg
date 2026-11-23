@@ -178,6 +178,49 @@ const DraftSchema = z.object({
 // A code as the tables hold it: ICD-10 (E11.9), ICD-9-CM with optional extension (96.04, 86.22+21), Appendix C (CE002).
 const CODE = /^([A-Z]\d{2}(\.\d{1,4})?|\d{2}(\.\d{1,2})?(\+\d{1,3})?|C[A-Z]?\d{3,4})$/;
 
+// The codes the tables do not know: they cannot be grouped or named on screen.
+async function unknownCodes(codes: string[]) {
+  const plain = codes.map((c) => c.trim().replace(/\+.*$/, "").replace(/\./g, "").toUpperCase()); // 86.22+21 -> 8622
+  const known = new Set((await db.query<{ code: string }>(
+    `select code from icd10_desc where code = any($1) union select code from icd9_desc where code = any($1)
+     union select code from proc where code = any($1)`, [plain])).rows.map((r) => r.code)); // proc: Appendix C combinations
+  return codes.filter((_, i) => !known.has(plain[i]));
+}
+
+// What submit_draft sends back for the model to fix (Pydantic AI's ModelRetry); none = accepted.
+async function draftProblems(d: z.infer<typeof DraftSchema>) {
+  const changes = d.variants.flatMap((v) =>
+    [...v.add, ...v.remove, ...v.swap.flatMap((s) => [s.from, s.to])].map((code) => ({ label: v.label, code })));
+  const isCode = (c: string) => CODE.test(c.trim());
+  const codes = [...new Set([...d.lines.map((l) => l.code), ...changes.map((c) => c.code)].filter(isCode))];
+  return [
+    ...d.lines.filter((l) => !isCode(l.code)).map((l) => `line "${l.text}": "${l.code}" is not one code`),
+    ...changes.filter((c) => !isCode(c.code)).map((c) => `variant "${c.label}": "${c.code}" is not one bare code`),
+    ...(await unknownCodes(codes)).map((c) => `${c} is not in the ICD-10-TM / ICD-9-CM tables: look it up and use a code they have`),
+  ];
+}
+
+// The draft comes back as this tool's input, not as a structured-output reply, so a wrong code goes back to the
+// model to fix. After MAX_SUBMITS tries it is accepted anyway and the checks in runDischargeSummary flag what is left.
+const MAX_SUBMITS = 3;
+type Submitted = { draft?: z.infer<typeof DraftSchema>; tries: number };
+function submitDraftTool(out: Submitted, trace: Step[], say: Say) {
+  return tool({
+    description: "Submit the finished discharge-summary draft. It checks every code against the ICD-10-TM / ICD-9-CM tables. "
+      + "If it answers accepted: false, fix the listed problems and submit the whole draft again.",
+    inputSchema: DraftSchema,
+    execute: async (d) => {
+      await say("กำลังตรวจรหัสในร่าง");
+      const t0 = Date.now();
+      const problems = await draftProblems(d);
+      trace.push({ script: "submit_draft", args: problems, ms: Date.now() - t0, ok: !problems.length });
+      if (problems.length && ++out.tries < MAX_SUBMITS) return { accepted: false, problems };
+      out.draft = d;
+      return { accepted: true };
+    },
+  });
+}
+
 // Variants feed the grouper, so anything in add/remove/swap that is not a bare code is dropped and flagged,
 // and a variant left with neither a change nor a question is dropped.
 function toDraft(d: z.infer<typeof DraftSchema>): Draft {
@@ -290,6 +333,7 @@ export async function runDischargeSummary(an: string): Promise<Draft> {
   const hash = await syncHash(an);
   const audit = (await db.query<{ report: string }>("select report from ward_audit where an = $1", [an])).rows[0];
   return agentRun(an, "dcsum", async (m, trace, say) => {
+    const out: Submitted = { tries: 0 };
     const r = await generateText({
       model: m.model,
       maxOutputTokens: m.maxOutputTokens,
@@ -308,25 +352,26 @@ discharge summary, and put in A only diagnoses the physician entered. A differen
 but the physician did not enter, is a variant with a non-leading question. The app enforces this when it saves.
 Clinical summary: write only what the chart records. Never add advice, warning signs to come back for, targets, plans
 or appointments that no note records; where the chart has none, write "ยังไม่ได้ระบุ — รอแพทย์ยืนยัน".
-Leave out alerts that only say nothing was found (e.g. "ไม่มี hard stop").`),
+Leave out alerts that only say nothing was found (e.g. "ไม่มี hard stop").
+Return the result by calling submit_draft: that is the structured output here, not a reply. It checks every code;
+when it answers accepted: false, fix the problems it lists (look the codes up again) and submit the whole draft again.`),
       prompt: `Draft the discharge summary for AN ${an}.${audit ? `\n\nThe chart audit already done for this AN, for context:\n${audit.report}` : ""}`,
-      tools: { run_skill_script: skillScriptTool(an, Object.keys(SCRIPTS) as Script[], trace, say) },
-      output: Output.object({ schema: DraftSchema }),
-      stopWhen: isStepCount(MAX_STEPS),
+      tools: {
+        run_skill_script: skillScriptTool(an, Object.keys(SCRIPTS) as Script[], trace, say),
+        submit_draft: submitDraftTool(out, trace, say),
+      },
+      stopWhen: [isStepCount(MAX_STEPS), () => !!out.draft],
       onStepStart: ({ stepNumber }) => (stepNumber ? say(THINKING) : undefined),
     });
+    if (!out.draft) throw new Error(`no draft submitted after ${r.steps.length} steps`);
     await say("กำลังบันทึกผล");
     const his = (await db.query<HisDx>("select type, text, icd10 from ward_dx_his where an = $1 and form = 'DC Summary' order by seq", [an])).rows;
-    const draft = followPhysician(toDraft(r.output), his);
+    const draft = followPhysician(toDraft(out.draft), his);
 
-    // A code the tables do not know cannot be grouped or named on screen: flag it instead of trusting it.
+    // Still checked after the fact: a draft accepted after MAX_SUBMITS, and codes followPhysician brought from the HIS.
     const codes = [...new Set([...draft.lines.map((l) => l.code), ...draft.variants.flatMap((v) => [...(v.change.add ?? []), ...Object.values(v.change.swap ?? {})])])];
-    const plain = codes.map((c) => c.replace(/\+.*$/, "").replace(/\./g, "").toUpperCase()); // 86.22+21 -> 8622
-    const known = new Set((await db.query<{ code: string }>(
-      `select code from icd10_desc where code = any($1) union select code from icd9_desc where code = any($1)
-       union select code from proc where code = any($1)`, [plain])).rows.map((r) => r.code)); // proc: Appendix C combinations
-    for (const [i, c] of codes.entries())
-      if (!known.has(plain[i])) draft.alerts.unshift({ level: "stop", text: `รหัส ${c} ไม่พบในตาราง ICD-10-TM / ICD-9-CM ต้องตรวจก่อนใช้` });
+    for (const c of await unknownCodes(codes))
+      draft.alerts.unshift({ level: "stop", text: `รหัส ${c} ไม่พบในตาราง ICD-10-TM / ICD-9-CM ต้องตรวจก่อนใช้` });
 
     await saveVersion(an, "dcsum", draft, m.id, hash, (tx, version, at) => tx.query(
       `insert into ward_draft (an, draft, at, model, hash, version) values ($1, $2, $3, $4, $5, $6)
