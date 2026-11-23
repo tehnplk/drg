@@ -1,11 +1,11 @@
 // The patient table both work lists show: identity, LOS, PDx and DRG, then where the chart stands in each step
-// (import → audit → D/C summary) with the buttons for the next step. Server component.
-import { ArrowRight } from "lucide-react";
+// (import → audit → D/C summary) with buttons to open the results. The AI is started from the case page only, where
+// the user works one case at a time; a run in progress shows its line here too. Server component.
+import { ArrowRight, ClipboardCheck, FileText } from "lucide-react";
 import Link from "next/link";
 import { approved, auditStale, chartHref, draftDrg, draftStale, finalStale, hasDraft, type AgentRun, type ChartRow } from "@/lib/charts.ts";
 import { formatThaiDateTime as when } from "@/lib/thai-date.ts";
 import { AUDIT_STATUS, ageText, LINE_ROLES, losDays, type AuditStatus, type Patient } from "@/lib/ward.ts";
-import { AgentButton } from "./agent-button.tsx";
 import { AgentProgress } from "./agent-progress.tsx";
 import { ImportButton } from "./import-button.tsx";
 import { Chip, type Tone } from "./ui.tsx";
@@ -41,7 +41,8 @@ export function RunNote({ run }: { run?: AgentRun }) {
 }
 
 const StaleNote = () => <div className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">ข้อมูลจาก HIS เปลี่ยนหลังจากนี้ ควรทำใหม่</div>;
-const linkCls = "text-indigo-600 hover:underline dark:text-indigo-300";
+// A small button to open a result (the audit report, the D/C draft).
+const viewBtn = "mt-1.5 flex w-fit items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium whitespace-nowrap text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 dark:text-indigo-300 dark:ring-indigo-500/30 dark:hover:bg-indigo-500/10";
 // imported: false for the HIS list (step 1), which shows only identity, the HIS summary state and import / Re-Sync;
 // the DRG, audit and AI columns belong to the work list (step 2).
 export async function ChartTable({ items, runs, imported = true }: { items: ChartItem[]; runs: AgentRun[]; imported?: boolean }) {
@@ -87,23 +88,25 @@ export async function ChartTable({ items, runs, imported = true }: { items: Char
                     <Link href={`/charts/${it.an}/audit`} className="hover:opacity-80">
                       <Chip tone={AUDIT_TONE[l.audit]}>{AUDIT_STATUS[l.audit]}</Chip>
                     </Link>
-                    <div className="mt-0.5 text-xs text-slate-500">{when(l.audit_at ?? "")} · <Link href={`/charts/${it.an}/audit`} className={linkCls}>ดูรายงาน</Link></div>
+                    <div className="mt-0.5 text-xs text-slate-500">{when(l.audit_at ?? "")}</div>
+                    <Link href={`/charts/${it.an}/audit`} className={viewBtn}><ClipboardCheck className="size-3.5" /> ดูรายงาน</Link>
                     {auditStale(l) && <StaleNote />}
                   </>
                 ) : (
                   <Chip tone="slate">{l ? "ยังไม่ audit" : "ยังไม่นำเข้าชาร์ท"}</Chip>
                 )}
                 <RunNote run={runOf(it.an, "audit")} />
-                {l && <AgentButton kind="audit" an={it.an} again={!!l.audit} running={runOf(it.an, "audit")?.status === "running"} />}
               </td>
               </>}
               <td className="px-3 py-3">
                 <Chip tone={dc.tone}>{dc.label}</Chip>
                 {l?.draft_at && (
-                  <div className="mt-0.5 text-xs text-slate-500">{when(l.draft_at)} · <Link href={`/charts/${it.an}/discharge-summary`} className={linkCls}>ดูร่าง</Link></div>
+                  <>
+                    <div className="mt-0.5 text-xs text-slate-500">{when(l.draft_at)}</div>
+                    <Link href={`/charts/${it.an}/discharge-summary`} className={viewBtn}><FileText className="size-3.5" /> ดูร่าง</Link>
+                  </>
                 )}
                 {imported && <RunNote run={runOf(it.an, "dcsum")} />}
-                {l && imported && <AgentButton kind="dcsum" an={it.an} again={!!l.draft_model} running={runOf(it.an, "dcsum")?.status === "running"} />}
               </td>
               <td className="px-3 py-3">
                 <div className="flex justify-end gap-2">
