@@ -4,6 +4,7 @@ import Form from "next/form";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { ChartTable } from "@/components/chart-table.tsx";
+import { BulkImport } from "@/components/import-button.tsx";
 import { ThaiDatePicker } from "@/components/thai-date-picker.tsx";
 import { IconTile, card } from "@/components/ui.tsx";
 import Link from "next/link";
@@ -22,7 +23,7 @@ export default function DischargesPage(props: PageProps<"/discharges">) {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">รายการผู้ป่วยใน HIS</h1>
             <p className="text-sm text-slate-500">
-              ผู้ป่วยในที่จำหน่ายในช่วงวันที่ ดึงสดจาก HIS นำเข้าชาร์ททีละคน แล้วทำ Audit และ D/C Summary ด้วย AI
+              ผู้ป่วยในที่จำหน่ายในช่วงวันที่ ดึงสดจาก HIS นำเข้าชาร์ททีละคน หรือติ๊กเลือกหลายรายแล้วนำเข้าพร้อมกัน แล้วทำ Audit และ D/C Summary ด้วย AI
             </p>
           </div>
         </header>
@@ -85,6 +86,7 @@ async function DischargedList({ searchParams }: Pick<PageProps<"/discharges">, "
           {his.length === MAX_DISCHARGED && (
             <span className="text-sm text-amber-700 dark:text-amber-300">แสดงแค่ {MAX_DISCHARGED} รายแรก ให้แคบช่วงวันที่ลง</span>
           )}
+          {his.length > local.size && <BulkImport />}
         </div>
         {his.length === 0
           ? <p className="p-6 text-slate-500">ไม่มีผู้ป่วยจำหน่ายในช่วงวันที่นี้</p>

@@ -7,7 +7,7 @@ import { approved, auditStale, chartHref, draftDrg, draftStale, finalStale, hasD
 import { formatThaiDateTime as when } from "@/lib/thai-date.ts";
 import { AUDIT_STATUS, ageText, LINE_ROLES, losDays, type AuditStatus, type Patient } from "@/lib/ward.ts";
 import { AgentProgress } from "./agent-progress.tsx";
-import { ImportButton } from "./import-button.tsx";
+import { BULK_FORM, ImportButton, SelectAll } from "./import-button.tsx";
 import { Chip, type Tone } from "./ui.tsx";
 
 export type ChartItem = Pick<Patient, "an" | "hn" | "sex" | "age" | "age_day" | "admit_at" | "discharge_at" | "leave_days"> & {
@@ -53,7 +53,10 @@ export async function ChartTable({ items, runs, imported = true }: { items: Char
   return (
     <table className={`w-full text-left text-sm ${imported ? "min-w-[72rem]" : "min-w-[56rem]"}`}>
       <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800/50">
-        <tr>{head.map((h, i) => <th key={i} className="px-3 py-3 font-medium whitespace-nowrap">{h}</th>)}</tr>
+        <tr>
+          {!imported && <th className="w-px py-3 pl-4"><SelectAll /></th>}
+          {head.map((h, i) => <th key={i} className="px-3 py-3 font-medium whitespace-nowrap">{h}</th>)}
+        </tr>
       </thead>
       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
         {items.map((it, i) => {
@@ -63,6 +66,11 @@ export async function ChartTable({ items, runs, imported = true }: { items: Char
           const dc = dcStatus(it);
           return (
             <tr key={it.an} className="align-top hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+              {!imported && (
+                <td className="py-3 pl-4">
+                  {!l && <input type="checkbox" name="an" value={it.an} form={BULK_FORM} aria-label={`เลือก AN ${it.an}`} className="size-4 accent-violet-600" />}
+                </td>
+              )}
               <td className="px-3 py-3 text-slate-400">{i + 1}</td>
               <td className="px-3 py-3 whitespace-nowrap">{when(it.discharge_at)}</td>
               <td className="px-3 py-3 font-mono">{it.hn}</td>

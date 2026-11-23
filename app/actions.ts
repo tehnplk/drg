@@ -27,6 +27,23 @@ export async function importChart(an: string, open = false) {
   refresh();
 }
 
+// The cases ticked on the HIS list, imported in one go; a case that fails does not stop the rest.
+// ponytail: one at a time so the HIS gets one request at a time; a few in parallel if a long list is too slow.
+export async function importCharts(_: unknown, form: FormData) {
+  const ans = [...new Set(form.getAll("an").map(String))];
+  const failed: string[] = [];
+  for (const an of ans) {
+    try {
+      checkAn(an);
+      await importAdmission(an);
+    } catch {
+      failed.push(an);
+    }
+  }
+  refresh();
+  return { ok: ans.length - failed.length, failed };
+}
+
 // Runs for a minute or two; the outcome (or the error) is kept in agent_run and shown on the list.
 export async function runAgent(kind: "audit" | "dcsum", an: string) {
   checkAn(an);
