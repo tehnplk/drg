@@ -4,6 +4,7 @@ import { BedDouble, Calculator, CalendarCheck, ClipboardPlus } from "lucide-reac
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
+import { ReviewerField } from "@/components/reviewer.tsx";
 
 // In the order of the work, numbered: pick and import discharged patients, review their charts, then the DRG tool.
 const LINKS = [
@@ -54,6 +55,7 @@ export default function AppBar() {
             <ActiveNavLinks />
           </Suspense>
         </nav>
+        <ReviewerField />
       </div>
     </header>
   );

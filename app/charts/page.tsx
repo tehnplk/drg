@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ChartTable } from "@/components/chart-table.tsx";
 import { IconTile, card } from "@/components/ui.tsx";
-import { chartRows, isPending, latestRuns, type ChartRow } from "@/lib/charts.ts";
+import { chartRows, draftStale, hasDraft, isPending, latestRuns, type ChartRow } from "@/lib/charts.ts";
 
 export const metadata: Metadata = { title: "รายการผู้ป่วยรอทำ D/C Sum" };
 
@@ -30,15 +30,20 @@ export default function ChartsPage(props: PageProps<"/charts">) {
   );
 }
 
-// The filters, in the order the work goes. "todo" is the default view.
+// Every case still to do sits in exactly one step, by how far it got: a fresh AI draft waits for approval (3), else an
+// audited chart waits for Sum with AI (2), else it waits for the audit (1). A draft older than the HIS data needs Sum
+// again (2), and an approval the HIS data changed after needs review again (3). "todo" (all steps) is the default view.
+const freshDraft = (r: ChartRow) => hasDraft(r) && !draftStale(r);
 const VIEWS = {
-  todo: { label: "รอทำ D/C Sum", match: isPending, empty: "ไม่มีเคสรอทำ ทุกชาร์ทที่นำเข้ามีร่างจากข้อมูลล่าสุดแล้ว" },
-  noaudit: { label: "ยังไม่ audit", match: (r: ChartRow) => isPending(r) && !r.audit, empty: "ทุกเคสที่รอทำ audit แล้ว" },
-  blocking: { label: "ติดเงื่อนไขบังคับ", match: (r: ChartRow) => isPending(r) && r.audit === "blocking", empty: "ไม่มีเคสที่ติดเงื่อนไขบังคับ" },
-  done: { label: "ทำ D/C Sum แล้ว", match: (r: ChartRow) => !isPending(r), empty: "ยังไม่มีเคสที่ทำ D/C Sum เสร็จ" },
-  all: { label: "ทั้งหมด", match: () => true, empty: "" },
+  todo: { label: "รอทำทั้งหมด", step: 0, match: isPending, empty: "ไม่มีเคสรอทำ ทุกชาร์ทที่นำเข้าอนุมัติรหัสจากข้อมูลล่าสุดแล้ว" },
+  noaudit: { label: "ยังไม่ audit", step: 1, match: (r: ChartRow) => isPending(r) && !freshDraft(r) && !r.audit, empty: "ไม่มีเคสที่รอ audit" },
+  sum: { label: "รอ Sum with AI", step: 2, match: (r: ChartRow) => isPending(r) && !freshDraft(r) && !!r.audit, empty: "ไม่มีเคสที่ audit แล้วรอ Sum with AI" },
+  review: { label: "รออนุมัติ", step: 3, match: (r: ChartRow) => isPending(r) && freshDraft(r), empty: "ไม่มีร่างที่รออนุมัติ" },
+  done: { label: "อนุมัติแล้ว", step: 4, match: (r: ChartRow) => !isPending(r), empty: "ยังไม่มีเคสที่อนุมัติรหัส" },
+  all: { label: "ทั้งหมด", step: 0, match: () => true, empty: "" },
 } as const;
 type View = keyof typeof VIEWS;
+const STEP_MARK = ["", "①", "②", "③", "④"];
 
 async function PatientList({ searchParams }: Pick<PageProps<"/charts">, "searchParams">) {
   await connection();
@@ -57,20 +62,28 @@ async function PatientList({ searchParams }: Pick<PageProps<"/charts">, "searchP
 
   return (
     <div className={`overflow-x-auto ${card}`}>
-      <nav aria-label="กรองรายการ" className="flex flex-wrap gap-1 border-b border-slate-100 p-2 dark:border-slate-800">
+      <nav aria-label="กรองรายการ" className="flex flex-wrap items-center gap-1 border-b border-slate-100 p-2 dark:border-slate-800">
         {(Object.keys(VIEWS) as View[]).map((v) => {
-          const n = rows.filter(VIEWS[v].match).length;
+          const { label, step, match } = VIEWS[v];
+          const inView = rows.filter(match);
+          const blocking = step ? inView.filter((r) => r.audit === "blocking").length : 0;
           const current = v === view;
           return (
-            <Link
-              key={v}
-              href={v === "todo" ? "/charts" : `/charts?view=${v}`}
-              aria-current={current ? "page" : undefined}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${current ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"}`}
-            >
-              {VIEWS[v].label}
-              <span className={`rounded-full px-1.5 text-xs tabular-nums ${current ? "bg-white/20" : v === "blocking" && n ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" : "bg-slate-100 dark:bg-slate-800"}`}>{n}</span>
-            </Link>
+            <span key={v} className="contents">
+              {(v === "noaudit" || v === "all") && <span aria-hidden className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />}
+              <Link
+                href={v === "todo" ? "/charts" : `/charts?view=${v}`}
+                aria-current={current ? "page" : undefined}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${current ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"}`}
+              >
+                {step > 0 && <span aria-hidden>{STEP_MARK[step]}</span>}
+                {label}
+                <span className={`rounded-full px-1.5 text-xs tabular-nums ${current ? "bg-white/20" : "bg-slate-100 dark:bg-slate-800"}`}>{inView.length}</span>
+                {blocking > 0 && (
+                  <span className={`rounded-full px-1.5 text-xs ${current ? "bg-rose-500 text-white" : "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"}`}>ติดบังคับ {blocking}</span>
+                )}
+              </Link>
+            </span>
           );
         })}
       </nav>

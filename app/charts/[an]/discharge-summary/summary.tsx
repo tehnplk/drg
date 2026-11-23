@@ -9,11 +9,15 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  BAHT_PER_ADJRW, DISCHARGE_TYPES, LINE_ROLES, MAX_SDX, ageText, applyChange, losDays, toCase,
-  type Change, type Coded, type Draft, type LineType, type Note, type Patient, type Status,
+  BAHT_PER_ADJRW, DISCHARGE_TYPES, LINE_ROLES, MAX_SDX, ageText, applyChange, finalCoding, losDays, toCase,
+  type Change, type Coded, type Draft, type LineType, type Note, type Patient, type Reviews, type Status,
 } from "@/lib/ward.ts";
+import type { Final, Version } from "@/lib/charts.ts";
 import { formatThaiDateTime } from "@/lib/thai-date.ts";
+import { saveReview } from "@/app/actions.ts";
+import { useReviewer } from "@/components/reviewer.tsx";
 import { SplitHandle, splitColumns, useSplit } from "@/components/split-handle.tsx";
+import { Approve } from "./approve.tsx";
 import { NoteTimeline } from "./timeline.tsx";
 import { Chip, IconTile, SectionCard, SubHeading, TONES, card, type Tone } from "@/components/ui.tsx";
 
@@ -56,6 +60,7 @@ const STEPS: [string, string, LucideIcon, Tone][] = [
   ["#summary", "สรุปการรักษา", FileText, "indigo"],
   ["#coding", "ตรวจรหัส", Tags, "violet"],
   ["#drg", "DRG / AdjRW", Scale, "emerald"],
+  ["#approve", "อนุมัติ", BadgeCheck, "teal"],
 ];
 
 type Grouped = { drg: string; rw: number; adjrw: number; err: number; warn: number };
@@ -79,17 +84,44 @@ function Field({ icon: Icon, label, children }: { icon: LucideIcon; label: strin
   );
 }
 
-export default function Summary({ patient: p, notes, draft, names, header }: {
+export default function Summary({ patient: p, notes, draft, names, header, version, latest, reviews: saved, final, versions }: {
   patient: Patient;
   notes: Note[];
   draft: Draft;
   names: Record<string, string>;
   header: ReactNode; // the case header (patient, steps, AI actions), rendered on the server
+  version: number | null; // the draft version on screen (ward_history.id); null = no draft yet
+  latest: boolean; // false: an older version opened from the history, read only
+  reviews: Reviews; // decisions saved on this version
+  final: Final | null; // the approved coding, if any
+  versions: Version[]; // every draft version, newest first
 }) {
   const [notesShare, setNotesShare, defaultShare] = useSplit("chart-notes-share", 0.4); // content 60% | notes 40%
-  const [decision, setDecision] = useState<Record<number, "accept" | "reject">>({});
-  const [answers, setAnswers] = useState<Record<number, "yes" | "no" | undefined>>({});
-  const rejected = (i: number) => decision[i] === "reject";
+  // Decisions are saved as they are made; the screen shows them at once and puts them back if the save fails.
+  const [reviews, setReviews] = useState(saved);
+  const [shownSaved, setShownSaved] = useState(saved);
+  if (shownSaved !== saved) { setShownSaved(saved); setReviews(saved); } // the server sent fresh data (refresh, another version)
+  const [saveError, setSaveError] = useState("");
+  const by = useReviewer();
+  const locked = final?.version === version; // approved: cancel the approval to change a decision
+  const readOnly = version == null || !latest || locked;
+  const decision = (i: number) => reviews[`line:${i}`]?.decision as "accept" | "reject" | undefined;
+  const answer = (i: number) => reviews[`variant:${i}`]?.decision as "yes" | "no" | undefined;
+  const rejected = (i: number) => decision(i) === "reject";
+  const decide = (item: string, value: string | undefined) => {
+    if (readOnly || version == null) return;
+    if (!by) return setSaveError("ใส่ชื่อผู้ใช้งานที่แถบด้านบนก่อน ชื่อนี้จะบันทึกไว้กับทุกการตัดสินใจ");
+    const before = reviews;
+    setReviews((r) => {
+      const { [item]: _, ...rest } = r; // eslint-disable-line @typescript-eslint/no-unused-vars -- dropped on purpose
+      return value ? { ...rest, [item]: { decision: value, note: null, by, at: "" } } : rest;
+    });
+    setSaveError("");
+    saveReview(version, item, value ?? null, by)
+      .then((r) => r && setReviews((cur) => ({ ...cur, [item]: r })))
+      .catch((e) => { setReviews(before); setSaveError(e instanceof Error ? e.message : String(e)); });
+  };
+  const who = (item: string) => reviews[item] && `${reviews[item].by}${reviews[item].at ? ` · ${formatThaiDateTime(reviews[item].at)}` : ""}`;
 
   const nameOf = (code: string) => names[plain(code)] ?? "ไม่พบรหัส";
   const describe = ({ add = [], remove = [], swap = {} }: Change) => [
@@ -99,7 +131,8 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
   ].join("; ");
 
   const active: Coded[] = draft.lines.flatMap((l, i) => (rejected(i) ? [] : [{ code: l.code, role: LINE_ROLES[l.type] }]));
-  const confirmed = draft.variants.filter((v, i) => v.question && answers[i] === "yes");
+  const confirmed = draft.variants.filter((v, i) => v.question && answer(i) === "yes");
+  const { missing } = finalCoding(draft, reviews);
   const rows = [
     { label: "A: ร่างปัจจุบัน", detail: "รหัสในร่างที่ยังไม่ถูกปฏิเสธ", coded: active, kind: "base" as const },
     ...draft.variants.map((v, i) => ({
@@ -154,7 +187,7 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
     })).then((pairs) => setLabels((n) => ({ ...n, ...Object.fromEntries(pairs) })));
   }, [result, labels]);
 
-  const decided = Object.values(decision);
+  const decided = draft.lines.flatMap((_, i) => decision(i) ?? []);
   const counts = { accept: decided.filter((d) => d === "accept").length, reject: decided.filter((d) => d === "reject").length };
   const pending = draft.lines.length - decided.length;
   const stops = draft.alerts.filter((a) => a.level === "stop");
@@ -172,7 +205,7 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
 
         <div className="grid min-w-0 content-start gap-6">
           <nav aria-label="ส่วนของร่าง D/C Summary" className={`sticky top-[4.5rem] z-10 grid gap-2 p-3 ${card}`}>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {STEPS.map(([href, label, Icon, tone], i) => (
                 <a key={href} href={href} className="flex items-center justify-center gap-2 rounded-xl p-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50 sm:justify-start dark:ring-slate-800 dark:hover:bg-slate-800/50">
                   <IconTile icon={Icon} tone={tone} size="sm" />
@@ -184,7 +217,26 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
               <Info className="size-4 shrink-0" />
               {draft.lines.length ? `ร่างโดย AI จากบันทึก ${notes.length} รายการ · ` : ""}ทุกรหัสต้องมีแพทย์หรือ coder กดยืนยัน AI เสนอและเตือนเท่านั้น
             </p>
+            {versions.length > 0 && (
+              <p className="flex flex-wrap items-center gap-1.5 px-1 text-xs text-slate-500">
+                <span>ร่างรุ่นที่ {versions.length - versions.findIndex((x) => x.id === version)} จาก {versions.length}:</span>
+                {versions.map((x, i) => (
+                  <a
+                    key={x.id}
+                    href={i === 0 ? "?" : `?v=${x.id}`}
+                    aria-current={x.id === version ? "page" : undefined}
+                    title={`${x.model ?? "ไม่ระบุโมเดล"}`}
+                    className="rounded-md px-1.5 py-0.5 ring-1 ring-slate-200 hover:bg-slate-100 aria-[current=page]:bg-indigo-600 aria-[current=page]:text-white aria-[current=page]:ring-indigo-600 dark:ring-slate-700 dark:hover:bg-slate-800"
+                  >
+                    {versions.length - i}{i === 0 ? " (ล่าสุด)" : ""} · {formatThaiDateTime(x.at)}
+                  </a>
+                ))}
+              </p>
+            )}
+            {!latest && <p className="px-1 text-xs font-medium text-amber-700 dark:text-amber-300">กำลังดูร่างรุ่นเก่าจากประวัติ ดูได้อย่างเดียว</p>}
           </nav>
+
+          {saveError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">บันทึกไม่สำเร็จ: {saveError}</p>}
 
           {stops.length > 0 && (
             <p role="alert" className="flex items-start gap-3 rounded-2xl bg-rose-600 p-4 text-white">
@@ -272,8 +324,12 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
                   {p.transfer_to || (p.discharge_type === "4" ? <span className="text-rose-600">ไม่ได้ระบุ</span> : "ไม่มี")}
                 </Field>
                 <Field icon={Skull} label="สาเหตุการตาย">ไม่มี</Field>
-                <Field icon={PenLine} label="แพทย์ผู้สรุป"><span className="font-normal text-slate-400">ลงนาม ……… ชื่อ–สกุล ……… ว. ……… วันที่ ………</span></Field>
-                <Field icon={UserCheck} label="ผู้ให้รหัสโรค / หัตถการ"><span className="font-normal text-slate-400">ชื่อ–สกุล ……… / ชื่อ–สกุล ………</span></Field>
+                <Field icon={PenLine} label="แพทย์ผู้สรุป">
+                  {final ? `${final.physician} ว.${final.license} · ${formatThaiDateTime(final.at)}` : <span className="font-normal text-slate-400">รอการอนุมัติ (ขั้นที่ 4)</span>}
+                </Field>
+                <Field icon={UserCheck} label="ผู้ให้รหัสโรค / หัตถการ">
+                  {final ? final.coder : <span className="font-normal text-slate-400">รอการอนุมัติ (ขั้นที่ 4)</span>}
+                </Field>
               </dl>
             </div>
           </SectionCard>
@@ -281,7 +337,11 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
           <SectionCard id="coding" step={2} icon={Tags} tone="violet" title="ข้อแนะนำการให้รหัส" subtitle="ถอดรหัสแล้วต้องได้ความหมายเดิมของแพทย์ กดรับหรือปฏิเสธทีละรหัส">
             <div className="grid gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="font-medium text-slate-700 dark:text-slate-300">รอยืนยัน {pending} จาก {draft.lines.length} รหัส</span>
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  รอยืนยัน {pending} จาก {draft.lines.length} รหัส
+                  {locked && <span className="ml-2 font-normal text-teal-700 dark:text-teal-300">อนุมัติแล้ว: ยกเลิกการอนุมัติที่ขั้นที่ 4 ก่อนจึงแก้ได้</span>}
+                  {!locked && latest && version != null && !by && <span className="ml-2 font-normal text-amber-700 dark:text-amber-300">ใส่ชื่อผู้ใช้งานที่แถบด้านบนก่อนกดยืนยัน</span>}
+                </span>
                 <span className="flex gap-1.5">
                   <Chip tone="emerald" icon={Check}>รับ {counts.accept}</Chip>
                   <Chip tone="rose" icon={X}>ปฏิเสธ {counts.reject}</Chip>
@@ -302,7 +362,7 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
                   {draft.lines.map((l, i) => {
                     const s = STATUS[l.status];
                     return (
-                      <tr key={i} className={decision[i] === "reject" ? "bg-rose-50/60 text-slate-400 dark:bg-rose-500/5" : decision[i] === "accept" ? "bg-emerald-50/60 dark:bg-emerald-500/5" : ""}>
+                      <tr key={i} className={decision(i) === "reject" ? "bg-rose-50/60 text-slate-400 dark:bg-rose-500/5" : decision(i) === "accept" ? "bg-emerald-50/60 dark:bg-emerald-500/5" : ""}>
                         <td className={td}><Chip tone={LINE_TONES[l.type]}>{l.type}</Chip></td>
                         <td className={td}>{l.text}</td>
                         <td className={`${td} font-mono font-semibold`}>{l.code}</td>
@@ -315,14 +375,16 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
                               <button
                                 key={value}
                                 type="button"
-                                aria-pressed={decision[i] === value}
-                                onClick={() => setDecision((d) => ({ ...d, [i]: value }))}
-                                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-600 hover:text-slate-900 aria-pressed:text-white dark:text-slate-300 ${on}`}
+                                disabled={readOnly}
+                                aria-pressed={decision(i) === value}
+                                onClick={() => decide(`line:${i}`, decision(i) === value ? undefined : value)}
+                                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-600 hover:text-slate-900 disabled:cursor-not-allowed aria-pressed:text-white dark:text-slate-300 ${on}`}
                               >
                                 <Icon className="size-3.5" />{label}
                               </button>
                             ))}
                           </div>
+                          {who(`line:${i}`) && <div className="mt-1 text-[11px] text-slate-500">{who(`line:${i}`)}</div>}
                         </td>
                       </tr>
                     );
@@ -468,19 +530,25 @@ export default function Summary({ patient: p, notes, draft, names, header }: {
                                 type="radio"
                                 name={`q${i}`}
                                 className="accent-white"
-                                checked={answers[i] === value}
-                                onChange={() => setAnswers((s) => ({ ...s, [i]: value }))}
+                                disabled={readOnly}
+                                checked={answer(i) === value}
+                                onChange={() => decide(`variant:${i}`, value)}
                               />
                               {label}
                             </label>
                           ))}
                         </div>
+                        {who(`variant:${i}`) && <p className="text-[11px] text-slate-500">บันทึกคำตอบโดย {who(`variant:${i}`)}</p>}
                       </div>
                     </li>
                   ))}
                 </ol>
               ) : <p className="text-sm text-slate-400">ไม่มี</p>}
             </div>
+          </SectionCard>
+
+          <SectionCard id="approve" step={4} icon={BadgeCheck} tone="teal" title="อนุมัติรหัสเพื่อส่งเบิก" subtitle="ทุกรหัสต้องรับหรือปฏิเสธ และทุกคำถามต้องมีคำตอบ ก่อนอนุมัติ">
+            <Approve an={p.an} version={version} latest={latest} missing={missing} final={final} attending={p.attending} />
           </SectionCard>
         </div>
 

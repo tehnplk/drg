@@ -88,7 +88,52 @@ export const WARD_SCHEMA = `
     status text not null, -- "running" | "done" | "error"
     model text not null, started_at text not null, finished_at text, steps integer, usage jsonb, trace jsonb, error text);
   alter table agent_run add column if not exists progress text; -- what the run is doing now, shown while it runs
-  create index if not exists agent_run_an on agent_run (an, kind, id desc);`;
+  create index if not exists agent_run_an on agent_run (an, kind, id desc);
+  -- Every AI result, never overwritten; ward_audit and ward_draft hold the latest and point at its version.
+  create table if not exists ward_history (
+    id serial primary key, an text not null references ward_patient on delete cascade,
+    kind text not null, -- "audit" | "dcsum"
+    at text not null, model text, hash text, result jsonb not null);
+  create index if not exists ward_history_an on ward_history (an, kind, id desc);
+  alter table ward_audit add column if not exists version integer;
+  alter table ward_draft add column if not exists version integer;
+  -- Results saved before ward_history existed (and seeded demo drafts) get their version once.
+  with h as (insert into ward_history (an, kind, at, model, hash, result)
+    select an, 'dcsum', coalesce(at, ''), model, hash, draft from ward_draft where version is null returning id, an)
+  update ward_draft d set version = h.id from h where d.an = h.an;
+  with h as (insert into ward_history (an, kind, at, model, hash, result)
+    select an, 'audit', at, model, hash, coalesce(result, jsonb_build_object('status', status, 'report_markdown', report)) from ward_audit
+    where version is null returning id, an)
+  update ward_audit a set version = h.id from h where a.an = h.an;
+  -- A person's decision on one item of one AI version (REVIEW_ITEM). by = the name the user entered: the app has no login.
+  create table if not exists ward_review (
+    version integer not null references ward_history on delete cascade, item text not null,
+    decision text not null, note text, by text not null, at text not null, primary key (version, item));
+  -- The coding a person approved for the claim, grouped on the server at approval. hash = ward_sync.hash then.
+  create table if not exists ward_final (
+    an text primary key references ward_patient on delete cascade, version integer not null references ward_history,
+    hash text, coded jsonb not null, drg text not null, rw double precision not null, adjrw double precision not null,
+    physician text not null, license text not null, coder text not null, by text not null, at text not null);`;
+
+// What a review can decide, per item: "line:<i>" a code in draft A, "variant:<i>" the physician's answer to a variant's
+// question, "query:<i>" an audit query to the physician (no row = still open).
+export const REVIEW_ITEM = /^(line|variant|query):\d{1,3}$/;
+export const DECISIONS = { line: ["accept", "reject"], variant: ["yes", "no"], query: ["answered", "closed"] } as const;
+export type Review = { decision: string; note: string | null; by: string; at: string };
+export type Reviews = Record<string, Review>; // by item
+
+// The coding a review approves: draft A without the rejected codes, then every variant the physician confirmed.
+// missing: what still needs a decision before it can be approved (each code, and each variant that asks a question).
+export function finalCoding(d: Draft, reviews: Reviews): { coded: Coded[]; missing: string[] } {
+  const said = (item: string) => reviews[item]?.decision;
+  const missing = [
+    ...d.lines.flatMap((l, i) => (said(`line:${i}`) ? [] : [`รหัส ${l.code}`])),
+    ...d.variants.flatMap((v, i) => (v.question && !said(`variant:${i}`) ? [`คำถาม: ${v.label}`] : [])),
+  ];
+  const kept = d.lines.flatMap((l, i) => (said(`line:${i}`) === "reject" ? [] : [{ code: l.code, role: LINE_ROLES[l.type] }]));
+  const coded = d.variants.reduce((c, v, i) => (v.question && said(`variant:${i}`) === "yes" ? applyChange(c, v.change) : c), kept);
+  return { coded, missing };
+}
 
 // Raw tables a sync replaces, children of ward_patient.
 export const RAW_TABLES = ["ward_note", "ward_lab", "ward_med", "ward_vital", "ward_io", "ward_followup", "ward_bed", "ward_dx_his"] as const;

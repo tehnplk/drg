@@ -1,4 +1,4 @@
-import { ClipboardCheck, MessageCircleQuestion, OctagonX, Sparkles, Stethoscope, TriangleAlert, Wrench } from "lucide-react";
+import { ClipboardCheck, History, MessageCircleQuestion, OctagonX, Sparkles, Stethoscope, TriangleAlert, Wrench } from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense, type ReactNode } from "react";
@@ -6,6 +6,8 @@ import { CaseHeader } from "@/components/case-header.tsx";
 import { AUDIT_TONE as TONE } from "@/components/chart-table.tsx";
 import { Chip, IconTile, card, type Tone } from "@/components/ui.tsx";
 import { staffWords, stepLabel, type AuditResult } from "@/lib/agent.ts";
+import { QueryStatus } from "@/components/query-status.tsx";
+import { reviewsOf, versionsOf } from "@/lib/charts.ts";
 import { db } from "@/lib/db.ts";
 import { formatThaiDateTime } from "@/lib/thai-date.ts";
 import { AUDIT_STATUS, type AuditStatus } from "@/lib/ward.ts";
@@ -17,7 +19,7 @@ export default function AuditPage(props: PageProps<"/charts/[an]/audit">) {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <main className="mx-auto grid w-full max-w-[120rem] content-start gap-6 p-4 sm:p-8">
         <Suspense fallback={<p className="text-slate-500">กำลังโหลดรายงาน...</p>}>
-          <Report params={props.params} />
+          <Report params={props.params} searchParams={props.searchParams} />
         </Suspense>
       </main>
     </div>
@@ -26,7 +28,7 @@ export default function AuditPage(props: PageProps<"/charts/[an]/audit">) {
 
 const READY = { ok: ["ครบ", "emerald"], gap: ["ยังขาด", "amber"], na: ["ไม่เกี่ยวข้อง", "slate"] } as const;
 
-type Audit = { status: AuditStatus; at: string; model: string | null; hash: string | null; result: AuditResult | null; report: string };
+type Audit = { status: AuditStatus; at: string; model: string | null; hash: string | null; result: AuditResult | null; report: string; version: number | null };
 type Run = { steps: number | null; usage: { inputTokens?: number; outputTokens?: number } | null; trace: { script: string; args: string[]; ok: boolean; ms: number }[] | null; started_at: string; finished_at: string | null };
 
 function Section({ id, icon, tone, title, children }: { id: string; icon: typeof OctagonX; tone: Tone; title: string; children: ReactNode }) {
@@ -52,13 +54,26 @@ function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   );
 }
 
-async function Report({ params }: Pick<PageProps<"/charts/[an]/audit">, "params">) {
+async function Report({ params, searchParams }: Pick<PageProps<"/charts/[an]/audit">, "params" | "searchParams">) {
   await connection();
   const { an } = await params;
-  const saved = (await db.query<Audit>("select status, at, model, hash, result, report from ward_audit where an = $1", [an])).rows[0];
+  // The latest audit, or an older version from the history (?v=<id>, read only).
+  const latestAudit = (await db.query<Audit>("select status, at, model, hash, result, report, version from ward_audit where an = $1", [an])).rows[0];
+  const v = Number((await searchParams).v);
+  const old = Number.isInteger(v) && v !== latestAudit?.version
+    ? (await db.query<{ at: string; model: string | null; hash: string | null; result: AuditResult }>(
+        "select at, model, hash, result from ward_history where id = $1 and an = $2 and kind = 'audit'", [v, an])).rows[0]
+    : undefined;
+  const saved: Audit | undefined = old
+    ? { status: old.result.status, at: old.at, model: old.model, hash: old.hash, result: old.result.blocking ? old.result : null, report: old.result.report_markdown, version: v }
+    : latestAudit;
   const audit = saved && staffWords(saved);
-  const sync = (await db.query<{ hash: string }>("select hash from ward_sync where an = $1", [an])).rows[0];
-  const run = (await db.query<Run>(
+  const [sync, versions, reviews] = await Promise.all([
+    db.query<{ hash: string }>("select hash from ward_sync where an = $1", [an]).then((r) => r.rows[0]),
+    versionsOf(an, "audit"),
+    reviewsOf(saved?.version ?? null),
+  ]);
+  const run = old ? undefined : (await db.query<Run>(
     "select steps, usage, trace, started_at, finished_at from agent_run where an = $1 and kind = 'audit' and status = 'done' order by id desc limit 1", [an])).rows[0];
   const a = audit?.result;
 
@@ -108,7 +123,11 @@ async function Report({ params }: Pick<PageProps<"/charts/[an]/audit">, "params"
             <Table head={["รายการ", "สถานะ", "หมายเหตุ"]} rows={a.readiness.map((r) => [r.item, <Chip key="s" tone={READY[r.status][1]}>{READY[r.status][0]}</Chip>, r.note])} />
           </Section>
           <Section id="queries" icon={MessageCircleQuestion} tone="violet" title="5. คำถามถึงแพทย์/ทีมก่อนเขียน Discharge Summary">
-            <Table head={["#", "คำถาม", "ผู้รับผิดชอบ"]} rows={a.queries.map((q, i) => [i + 1, q.question, q.owner])} />
+            <Table
+              head={["#", "คำถาม", "ผู้รับผิดชอบ", "สถานะ / คำตอบ"]}
+              rows={a.queries.map((q, i) => [i + 1, q.question, q.owner,
+                audit.version != null && <QueryStatus key="s" version={audit.version} index={i} saved={reviews[`query:${i}`]} readOnly={!!old} />])}
+            />
           </Section>
         </>
       )}
@@ -130,6 +149,23 @@ async function Report({ params }: Pick<PageProps<"/charts/[an]/audit">, "params"
               ))}
             </ul>
           )}
+          {versions.length > 1 && (
+            <p className="flex flex-wrap items-center gap-1.5 text-xs">
+              <History className="size-3.5 text-slate-400" /> ผล audit ทุกรุ่น:
+              {versions.map((x, i) => (
+                <a
+                  key={x.id}
+                  href={i === 0 ? "?" : `?v=${x.id}`}
+                  aria-current={x.id === audit.version ? "page" : undefined}
+                  title={x.model ?? "บันทึกด้วยมือ"}
+                  className="rounded-md px-1.5 py-0.5 ring-1 ring-slate-200 hover:bg-slate-100 aria-[current=page]:bg-indigo-600 aria-[current=page]:text-white aria-[current=page]:ring-indigo-600 dark:ring-slate-700 dark:hover:bg-slate-800"
+                >
+                  {versions.length - i}{i === 0 ? " (ล่าสุด)" : ""} · {formatThaiDateTime(x.at)}
+                </a>
+              ))}
+            </p>
+          )}
+          {old && <p className="text-xs font-medium text-amber-700 dark:text-amber-300">กำลังดูผล audit รุ่นเก่าจากประวัติ ดูได้อย่างเดียว</p>}
           <p className="text-xs text-slate-500">ผลจาก AI เป็นข้อเสนอให้แพทย์และทีมพิจารณา ไม่ใช่การวินิจฉัย</p>
         </section>
       )}

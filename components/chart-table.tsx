@@ -2,7 +2,7 @@
 // (import → audit → D/C summary) with the buttons for the next step. Server component.
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { auditStale, chartHref, draftDrg, draftStale, hasDraft, type AgentRun, type ChartRow } from "@/lib/charts.ts";
+import { approved, auditStale, chartHref, draftDrg, draftStale, finalStale, hasDraft, type AgentRun, type ChartRow } from "@/lib/charts.ts";
 import { formatThaiDateTime as when } from "@/lib/thai-date.ts";
 import { AUDIT_STATUS, ageText, LINE_ROLES, losDays, type AuditStatus, type Patient } from "@/lib/ward.ts";
 import { AgentButton } from "./agent-button.tsx";
@@ -19,9 +19,12 @@ export type ChartItem = Pick<Patient, "an" | "hn" | "sex" | "age" | "age_day" | 
 export const AUDIT_TONE: Record<AuditStatus, Tone> = { blocking: "rose", gaps: "amber", ready: "emerald" };
 
 export function dcStatus(i: Pick<ChartItem, "pdx_text" | "local">): { label: string; tone: Tone } {
+  if (i.local && approved(i.local)) return finalStale(i.local)
+    ? { label: "อนุมัติแล้ว แต่ข้อมูล HIS เปลี่ยนหลังอนุมัติ", tone: "amber" }
+    : { label: "อนุมัติรหัสแล้ว", tone: "emerald" };
   if (i.local && hasDraft(i.local)) return draftStale(i.local)
     ? { label: "ร่างเก่ากว่าข้อมูล HIS", tone: "amber" }
-    : { label: "AI ร่างและให้รหัสแล้ว", tone: "emerald" };
+    : { label: "AI ร่างแล้ว รออนุมัติ", tone: "violet" };
   return i.pdx_text ? { label: "แพทย์สรุปใน HIS", tone: "sky" } : { label: "แพทย์ยังไม่สรุป", tone: "slate" };
 }
 
@@ -31,9 +34,9 @@ export function RunNote({ run }: { run?: AgentRun }) {
   if (!run || run.status === "done") return null;
   if (run.status === "running") return <div className="mt-1 max-w-64"><AgentProgress an={run.an} kind={run.kind} /></div>;
   const e = run.error ?? "";
-  const why = /requires more credits|insufficient credits/i.test(e) ? "เครดิต OpenRouter ไม่พอ ต้องเติมเครดิตก่อน"
-    : /ECONNREFUSED|fetch failed|ETIMEDOUT/i.test(e) ? "ต่อ OpenRouter ไม่ได้ ตรวจอินเทอร์เน็ต"
-    : e.slice(0, 160);
+  // Every provider failed by now (a run that fell back and finished is "done"); the raw errors stay in agent_run.
+  const why = /ECONNREFUSED|fetch failed|ETIMEDOUT/i.test(e) ? "ต่อ AI provider ไม่ได้ ตรวจอินเทอร์เน็ต"
+    : "Provider หลักไม่พร้อม และ Fallback provider ทำไม่สำเร็จ ลองใหม่อีกครั้ง";
   return <div className="mt-1 max-w-56 text-xs break-words text-rose-700 dark:text-rose-300">AI ทำไม่สำเร็จ ({when(run.started_at)}): {why}</div>;
 }
 
@@ -73,7 +76,10 @@ export async function ChartTable({ items, runs, imported = true }: { items: Char
                 <div className="mt-0.5 text-xs text-slate-500">{it.pdx_text ?? l?.working_dx ?? "–"}</div>
               </td>
               {imported && <>
-              <td className="px-3 py-3 font-mono">{drg?.drg ?? "–"}</td>
+              <td className="px-3 py-3">
+                <span className="font-mono">{drg?.drg ?? "–"}</span>
+                {drg && <div className="text-xs text-slate-500">{l && approved(l) ? "อนุมัติแล้ว" : "ร่าง AI"}</div>}
+              </td>
               <td className="px-3 py-3 font-mono">{drg ? drg.adjrw.toFixed(4) : "–"}</td>
               <td className="px-3 py-3">
                 {l?.audit ? (

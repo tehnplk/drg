@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { CaseHeader } from "@/components/case-header.tsx";
 import { staffWords } from "@/lib/agent.ts";
+import { finalOf, reviewsOf, versionsOf } from "@/lib/charts.ts";
 import { db } from "@/lib/db.ts";
 import { withName } from "@/lib/pii.ts";
 import type { Draft, Note, Patient } from "@/lib/ward.ts";
@@ -14,20 +15,27 @@ export const metadata: Metadata = { title: "D/C Summary และ DRG" };
 export default function DischargeSummaryPage(props: PageProps<"/charts/[an]/discharge-summary">) {
   return (
     <Suspense fallback={<p className="p-8 text-slate-500">กำลังโหลดชาร์ทและร่าง D/C Summary...</p>}>
-      <Chart params={props.params} />
+      <Chart params={props.params} searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
-async function Chart({ params }: Pick<PageProps<"/charts/[an]/discharge-summary">, "params">) {
+async function Chart({ params, searchParams }: Pick<PageProps<"/charts/[an]/discharge-summary">, "params" | "searchParams">) {
   await connection();
   const { an } = await params;
   const row = (await db.query<Patient>("select * from ward_patient where an = $1", [an])).rows[0];
   if (!row) notFound();
   const patient = withName(row) as Patient;
   const notes = (await db.query<Note>("select at, kind, author, body from ward_note where an = $1 order by seq", [an])).rows;
-  // Charts imported from the HIS have no draft until one is written for them.
-  const saved = (await db.query<{ draft: Draft }>("select draft from ward_draft where an = $1", [an])).rows[0]?.draft;
+  // The latest draft, or an older version from the history (?v=<id>, read only). None until one is written.
+  const current = (await db.query<{ draft: Draft; version: number | null }>("select draft, version from ward_draft where an = $1", [an])).rows[0];
+  const v = Number((await searchParams).v);
+  const old = Number.isInteger(v) && v !== current?.version
+    ? (await db.query<{ result: Draft }>("select result from ward_history where id = $1 and an = $2 and kind = 'dcsum'", [v, an])).rows[0]?.result
+    : undefined;
+  const version = old ? v : current?.version ?? null;
+  const saved = old ?? current?.draft;
+  const [reviews, final, versions] = await Promise.all([reviewsOf(version), finalOf(an), versionsOf(an, "dcsum")]);
   const draft: Draft = saved ? staffWords(saved) : {
     lines: [], summary: ["", "", "", "", ""], notCoded: [], variants: [],
     alerts: [{ level: "suggest", text: "ยังไม่มีร่าง D/C Summary ของเคสนี้ กด \"Sum with AI\" ที่ขั้นที่ 2 ด้านบน ใช้เวลาประมาณ 1–3 นาที" }],
@@ -45,5 +53,10 @@ async function Chart({ params }: Pick<PageProps<"/charts/[an]/discharge-summary"
   );
   const names = Object.fromEntries(rows.map((r) => [r.code, r.desc]));
 
-  return <Summary patient={patient} notes={notes} draft={draft} names={names} header={<CaseHeader an={an} active="dcsum" />} />;
+  return (
+    <Summary
+      patient={patient} notes={notes} draft={draft} names={names} header={<CaseHeader an={an} active="dcsum" />}
+      version={version} latest={!old} reviews={reviews} final={final} versions={versions}
+    />
+  );
 }

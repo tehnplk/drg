@@ -9,7 +9,7 @@ import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { extractJsonMiddleware, generateText, isStepCount, Output, tool, wrapLanguageModel, type LanguageModel } from "ai";
 import { z } from "zod";
-import { db } from "./db.ts";
+import { db, type Queryable } from "./db.ts";
 import { followPhysician, LINE_ROLES, WARD_SCHEMA, type AuditStatus, type Draft, type HisDx, type LineType } from "./ward.ts";
 
 try { process.loadEnvFile(".env"); } catch { /* Next loads .env itself */ }
@@ -207,7 +207,7 @@ function toDraft(d: z.infer<typeof DraftSchema>): Draft {
 
 // ── Runs ─────────────────────────────────────────────────────────────────────
 const THINKING = "กำลังวิเคราะห์และเขียนผล"; // a step after tool results: the model reads them and writes
-const nowBkk = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+export const nowBkk = () =>new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
 
 // One agent_run row per run. model = the model that produced the result; on a fallback, error keeps why the
 // earlier model failed (a done run's error is not shown as a failure).
@@ -222,7 +222,7 @@ async function agentRun<T>(an: string, kind: "audit" | "dcsum", go: (m: Model, t
   const failed: string[] = [];
   for (const [i, m] of MODELS.entries()) {
     const trace: Step[] = [];
-    if (i) await say(`OpenRouter ใช้ไม่ได้ เปลี่ยนไปใช้ ${m.id.split("/").pop()}`);
+    if (i) await say("Provider หลักไม่พร้อม เปลี่ยนเป็น Fallback provider");
     try {
       const { value, steps, usage } = await go(m, trace, say);
       await db.query("update agent_run set status = 'done', finished_at = $2, steps = $3, usage = $4, trace = $5, model = $6, error = $7 where id = $1",
@@ -238,6 +238,19 @@ async function agentRun<T>(an: string, kind: "audit" | "dcsum", go: (m: Model, t
     }
   }
   throw new Error("no agent model configured"); // unreachable: MODELS always has the primary
+}
+
+// A result is kept as a new version in ward_history, then shown as the latest (ward_audit / ward_draft), together.
+// Reviews belong to the version they were made on, so a re-run starts clean and the old decisions stay with the old one.
+async function saveVersion(an: string, kind: "audit" | "dcsum", result: unknown, model: string, hash: string,
+  latest: (tx: Queryable, version: number, at: string) => Promise<unknown>) {
+  const at = nowBkk();
+  await db.transaction(async (tx) => {
+    const { rows } = await tx.query<{ id: number }>(
+      "insert into ward_history (an, kind, at, model, hash, result) values ($1, $2, $3, $4, $5, $6) returning id",
+      [an, kind, at, model, hash, JSON.stringify(result)]);
+    await latest(tx, rows[0].id, at);
+  });
 }
 
 const syncHash = async (an: string) => {
@@ -264,11 +277,11 @@ Step 6 (save-audit.ts) is done by the app from your structured output: do not tr
     });
     const a = r.output;
     await say("กำลังบันทึกผล");
-    await db.query(
-      `insert into ward_audit (an, status, at, report, hash, result, model) values ($1, $2, $3, $4, $5, $6, $7)
+    await saveVersion(an, "audit", a, m.id, hash, (tx, version, at) => tx.query(
+      `insert into ward_audit (an, status, at, report, hash, result, model, version) values ($1, $2, $3, $4, $5, $6, $7, $8)
        on conflict (an) do update set status = excluded.status, at = excluded.at, report = excluded.report,
-         hash = excluded.hash, result = excluded.result, model = excluded.model`,
-      [an, a.status satisfies AuditStatus, nowBkk(), a.report_markdown, hash, JSON.stringify(a), m.id]);
+         hash = excluded.hash, result = excluded.result, model = excluded.model, version = excluded.version`,
+      [an, a.status satisfies AuditStatus, at, a.report_markdown, hash, JSON.stringify(a), m.id, version]));
     return { value: a, steps: r.steps.length, usage: r.totalUsage };
   });
 }
@@ -315,10 +328,11 @@ Leave out alerts that only say nothing was found (e.g. "ไม่มี hard sto
     for (const [i, c] of codes.entries())
       if (!known.has(plain[i])) draft.alerts.unshift({ level: "stop", text: `รหัส ${c} ไม่พบในตาราง ICD-10-TM / ICD-9-CM ต้องตรวจก่อนใช้` });
 
-    await db.query(
-      `insert into ward_draft (an, draft, at, model, hash) values ($1, $2, $3, $4, $5)
-       on conflict (an) do update set draft = excluded.draft, at = excluded.at, model = excluded.model, hash = excluded.hash`,
-      [an, JSON.stringify(draft), nowBkk(), m.id, hash]);
+    await saveVersion(an, "dcsum", draft, m.id, hash, (tx, version, at) => tx.query(
+      `insert into ward_draft (an, draft, at, model, hash, version) values ($1, $2, $3, $4, $5, $6)
+       on conflict (an) do update set draft = excluded.draft, at = excluded.at, model = excluded.model, hash = excluded.hash,
+         version = excluded.version`,
+      [an, JSON.stringify(draft), at, m.id, hash, version]));
     return { value: draft, steps: r.steps.length, usage: r.totalUsage };
   });
 }

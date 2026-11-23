@@ -493,7 +493,7 @@ async function check() {
 
 await check();
 await db.transaction(async (tx) => {
-  await tx.exec(`drop table if exists agent_run, ward_sync, ward_audit, ward_draft, ${RAW_TABLES.join(", ")}, ward_patient; ${WARD_SCHEMA}`);
+  await tx.exec(`drop table if exists ward_final, ward_review, ward_history, agent_run, ward_sync, ward_audit, ward_draft,${RAW_TABLES.join(", ")}, ward_patient; ${WARD_SCHEMA}`);
   for (const { patient, notes, draft } of SEEDS) {
     const cols = Object.keys(patient);
     await tx.query(`insert into ward_patient (${cols.join(",")}) values (${cols.map((_, i) => `$${i + 1}`).join(",")})`, Object.values(patient));

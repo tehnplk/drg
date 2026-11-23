@@ -1,6 +1,6 @@
 // node scripts/test-draft.ts — draft A follows the physician's HIS discharge summary (lib/ward.ts followPhysician).
 import assert from "node:assert/strict";
-import { applyChange, followPhysician, LINE_ROLES, type Draft, type Line } from "../lib/ward.ts";
+import { applyChange, finalCoding, followPhysician, LINE_ROLES, type Draft, type Line } from "../lib/ward.ts";
 
 const line = (type: Line["type"], code: string, text = code): Line => ({ type, text, code, status: "exact", evidence: "ชาร์ท" });
 const draft = (lines: Line[], variants: Draft["variants"] = []): Draft => ({ lines, summary: ["", "", "", "", ""], notCoded: [], alerts: [], variants });
@@ -33,6 +33,18 @@ const missing = followPhysician(draft([line("Principal diagnosis", "A41.9", "Sep
 assert.deepEqual(a(missing), ["pdx:R50.9", "sdx:I10"]);
 assert.equal(missing.lines[0].status, "ambiguous");
 assert.deepEqual(missing.variants[0].change, { swap: { "R50.9": "A41.9" } });
+
+// finalCoding: draft A minus rejected codes, plus every variant the physician confirmed; open items block approval.
+const r = (decision: string) => ({ decision, note: null, by: "coder", at: "2569-11-23 15:00" });
+const open = finalCoding(fixed, { "line:0": r("accept") });
+assert.ok(open.missing.length > 0 && open.missing.every((m) => !m.includes("E11.9")), "undecided codes and questions are listed");
+const answers = Object.fromEntries([
+  ...fixed.lines.map((_, i) => [`line:${i}`, r(i === 2 ? "reject" : "accept")]), // reject the procedure
+  ...fixed.variants.map((v, i) => [`variant:${i}`, r(v.change.add?.[0] === "E78.2" ? "yes" : "no")]),
+]);
+const done = finalCoding(fixed, answers);
+assert.deepEqual(done.missing, []);
+assert.deepEqual(done.coded.map((c) => `${c.role}:${c.code}`), ["pdx:E11.9", "sdx:I10", "sdx:E78.2"], "rejected code out, confirmed variant in");
 
 // Already following the physician, or no HIS summary yet: unchanged.
 const good = draft([line("Principal diagnosis", "E11.9"), line("Comorbidity", "I10")]);
