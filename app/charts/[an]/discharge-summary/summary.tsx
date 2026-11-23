@@ -1,19 +1,21 @@
 "use client";
 
 import {
-  Activity, ArrowDownRight, ArrowLeft, ArrowUpRight, BadgeCheck, Ban, BedDouble, Building2, CalendarCheck, CalendarDays,
+  Activity, ArrowDownRight, ArrowUpRight, BadgeCheck, Ban, BedDouble, Building2, CalendarCheck, CalendarDays,
   Check, CircleArrowDown, CircleArrowUp, CircleCheck, CircleDashed, CircleHelp, CircleX, ClipboardList, Clock, DoorOpen,
-  FileText, FlaskConical, Hash, HeartPulse, Info, Lightbulb, MessageCircleQuestion, Microscope, Minus, OctagonX, PenLine,
-  Pill, Route, Scale, Scissors, ShieldCheck, Skull, Sparkles, Stethoscope, Syringe, Tags, TriangleAlert, UserCheck,
+  FileText, Hash, HeartPulse, Info, Lightbulb, MessageCircleQuestion, Microscope, Minus, OctagonX, PenLine,
+  Pill, Route, Scale, Scissors, ShieldCheck, Skull, Stethoscope, Syringe, Tags, TriangleAlert, UserCheck,
   UserRound, Wallet, X, type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
-  BAHT_PER_ADJRW, DISCHARGE_TYPES, LINE_ROLES, MAX_SDX, ageText, applyChange, fmtDate, losDays, toCase,
+  BAHT_PER_ADJRW, DISCHARGE_TYPES, LINE_ROLES, MAX_SDX, ageText, applyChange, losDays, toCase,
   type Change, type Coded, type Draft, type LineType, type Note, type Patient, type Status,
 } from "@/lib/ward.ts";
-import { Chip, IconTile, PatientAvatar, SectionCard, SubHeading, TONES, card, wardTone, type Tone } from "../ui.tsx";
+import { formatThaiDateTime } from "@/lib/thai-date.ts";
+import { SplitHandle, splitColumns, useSplit } from "@/components/split-handle.tsx";
+import { NoteTimeline } from "./timeline.tsx";
+import { Chip, IconTile, SectionCard, SubHeading, TONES, card, type Tone } from "@/components/ui.tsx";
 
 const STATUS: Record<Status, { label: string; icon: LucideIcon; tone: Tone }> = {
   exact: { label: "Exact", icon: CircleCheck, tone: "emerald" },
@@ -29,14 +31,6 @@ const LEVELS: { level: Draft["alerts"][number]["level"]; label: string; icon: Lu
   { level: "warn", label: "Warning", icon: TriangleAlert, tone: "amber" },
   { level: "suggest", label: "Suggestion", icon: Lightbulb, tone: "sky" },
 ];
-
-const NOTE_KINDS: Record<Note["kind"], { label: string; icon: LucideIcon; tone: Tone }> = {
-  admission: { label: "Admission note", icon: FileText, tone: "indigo" },
-  progress: { label: "Progress note", icon: Stethoscope, tone: "sky" },
-  procedure: { label: "หัตถการ", icon: Syringe, tone: "violet" },
-  nursing: { label: "บันทึกพยาบาล", icon: HeartPulse, tone: "pink" },
-  lab: { label: "ผลตรวจ", icon: FlaskConical, tone: "teal" },
-};
 
 const LINE_TONES: Record<LineType, Tone> = {
   "Principal diagnosis": "indigo",
@@ -85,12 +79,14 @@ function Field({ icon: Icon, label, children }: { icon: LucideIcon; label: strin
   );
 }
 
-export default function Summary({ patient: p, notes, draft, names }: {
+export default function Summary({ patient: p, notes, draft, names, header }: {
   patient: Patient;
   notes: Note[];
   draft: Draft;
   names: Record<string, string>;
+  header: ReactNode; // the case header (patient, steps, AI actions), rendered on the server
 }) {
+  const [notesShare, setNotesShare, defaultShare] = useSplit("chart-notes-share", 0.4); // content 60% | notes 40%
   const [decision, setDecision] = useState<Record<number, "accept" | "reject">>({});
   const [answers, setAnswers] = useState<Record<number, "yes" | "no" | undefined>>({});
   const rejected = (i: number) => decision[i] === "reject";
@@ -168,37 +164,27 @@ export default function Summary({ patient: p, notes, draft, names }: {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <main className="mx-auto grid w-full max-w-[96rem] gap-6 p-4 sm:p-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <main
+        style={splitColumns(notesShare)}
+        className="mx-auto grid w-full max-w-[120rem] gap-6 p-4 sm:p-8 lg:grid-cols-[var(--split-cols)] lg:gap-x-2"
+      >
+        <div className="min-w-0 lg:col-span-3">{header}</div>
+
         <div className="grid min-w-0 content-start gap-6">
-          <header className={`grid gap-4 p-5 sm:p-6 ${card}`}>
-            <Link href="/ward" className="inline-flex w-fit items-center gap-1 text-sm text-indigo-600 hover:underline dark:text-indigo-400">
-              <ArrowLeft className="size-4" /> รายการผู้ป่วย
-            </Link>
-            <div className="flex flex-wrap items-center gap-4">
-              <PatientAvatar p={p} size="lg" />
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Discharge Summary: {p.name}</h1>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Chip tone="slate" icon={Hash} mono>AN {p.an}</Chip>
-                  <Chip tone={wardTone(p.ward)} icon={BedDouble}>{p.ward} · เตียง {p.bed}</Chip>
-                  <Chip tone="slate" icon={Clock}>LOS {losDays(p)} วัน</Chip>
-                  <Chip tone="slate" icon={ShieldCheck}>{p.insurance}</Chip>
-                  <Chip tone="violet" icon={Sparkles}>ร่างโดย AI จากบันทึก {notes.length} รายการ</Chip>
-                </div>
-              </div>
-            </div>
-            <nav className="grid grid-cols-3 gap-2">
+          <nav aria-label="ส่วนของร่าง D/C Summary" className={`sticky top-[4.5rem] z-10 grid gap-2 p-3 ${card}`}>
+            <div className="grid grid-cols-3 gap-2">
               {STEPS.map(([href, label, Icon, tone], i) => (
-                <a key={href} href={href} className="flex flex-col items-center gap-1 rounded-xl p-2 text-center ring-1 ring-slate-200 hover:bg-slate-50 sm:flex-row sm:gap-2 sm:text-left dark:ring-slate-800 dark:hover:bg-slate-800/50">
+                <a key={href} href={href} className="flex items-center justify-center gap-2 rounded-xl p-2 text-sm ring-1 ring-slate-200 hover:bg-slate-50 sm:justify-start dark:ring-slate-800 dark:hover:bg-slate-800/50">
                   <IconTile icon={Icon} tone={tone} size="sm" />
-                  <span className="text-xs sm:text-sm"><span className="text-slate-400">{i + 1}.</span> {label}</span>
+                  <span><span className="text-slate-400">{i + 1}.</span> {label}</span>
                 </a>
               ))}
-            </nav>
-            <p className="flex items-center gap-2 text-xs text-slate-500">
-              <Info className="size-4" /> ทุกรหัสต้องมีแพทย์หรือ coder กดยืนยัน AI เสนอและเตือนเท่านั้น
+            </div>
+            <p className="flex items-center gap-2 px-1 text-xs text-slate-500">
+              <Info className="size-4 shrink-0" />
+              {draft.lines.length ? `ร่างโดย AI จากบันทึก ${notes.length} รายการ · ` : ""}ทุกรหัสต้องมีแพทย์หรือ coder กดยืนยัน AI เสนอและเตือนเท่านั้น
             </p>
-          </header>
+          </nav>
 
           {stops.length > 0 && (
             <p role="alert" className="flex items-start gap-3 rounded-2xl bg-rose-600 p-4 text-white">
@@ -213,8 +199,8 @@ export default function Summary({ patient: p, notes, draft, names }: {
               <Field icon={UserRound} label="เพศ / อายุ">
                 {p.sex === "1" ? "ชาย" : "หญิง"} / {ageText(p)}{p.age_day ? ` · น้ำหนักแรกรับ ${p.weight} kg` : ""}
               </Field>
-              <Field icon={CalendarDays} label="วันเวลารับไว้">{fmtDate(p.admit_at)}</Field>
-              <Field icon={CalendarCheck} label="วันเวลาจำหน่าย">{fmtDate(p.discharge_at)}</Field>
+              <Field icon={CalendarDays} label="วันเวลารับไว้">{formatThaiDateTime(p.admit_at)}</Field>
+              <Field icon={CalendarCheck} label="วันเวลาจำหน่าย">{formatThaiDateTime(p.discharge_at)}</Field>
               <Field icon={Clock} label="วันนอน / วันลากลับบ้าน">{losDays(p)} วัน / {p.leave_days || "ไม่มี"}</Field>
               <Field icon={BedDouble} label="หอผู้ป่วย">{p.ward} เตียง {p.bed}</Field>
               <Field icon={ShieldCheck} label="สิทธิการรักษา">{p.insurance}</Field>
@@ -498,26 +484,10 @@ export default function Summary({ patient: p, notes, draft, names }: {
           </SectionCard>
         </div>
 
-        <aside className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-          <div className={`p-5 ${card}`}>
-            <h2 className="mb-4 flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-50">
-              <IconTile icon={FileText} tone="slate" size="sm" /> บันทึกในเวชระเบียน
-            </h2>
-            <ol className="relative grid gap-4 before:absolute before:top-2 before:bottom-2 before:left-3.5 before:w-px before:bg-slate-200 dark:before:bg-slate-800">
-              {notes.map((n, i) => {
-                const k = NOTE_KINDS[n.kind];
-                return (
-                  <li key={i} className="relative flex gap-3 text-sm">
-                    <IconTile icon={k.icon} tone={k.tone} size="sm" />
-                    <div className="min-w-0">
-                      <div className="text-xs text-slate-500"><b className="text-slate-700 dark:text-slate-300">{k.label}</b> · {fmtDate(n.at)} · {n.author}</div>
-                      <p className="mt-1 whitespace-pre-line text-slate-700 dark:text-slate-300">{n.body}</p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
+        <SplitHandle share={notesShare} onChange={setNotesShare} initial={defaultShare} label="ปรับความกว้างแผงบันทึกในเวชระเบียน" />
+
+        <aside className="min-w-0 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+          <NoteTimeline notes={notes} admitAt={p.admit_at} />
         </aside>
       </main>
     </div>

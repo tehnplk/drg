@@ -1,5 +1,5 @@
 // Deterministic pre-discharge chart scanner (Concurrent CDI / Chart Audit).
-// Scans an inpatient chart from PGlite (by AN) or pasted text (via stdin '-' or '@file.txt')
+// Scans an inpatient chart from the database (by AN) or pasted text (via stdin '-' or '@file.txt')
 // to flag blocking MRA/TDRG gaps, over-coding evidence risks, unaddressed nursing/lab findings,
 // specificity gaps, and discharge-readiness gaps BEFORE drafting a discharge summary.
 //

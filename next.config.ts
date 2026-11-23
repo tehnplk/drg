@@ -1,11 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // PGlite loads its wasm/data files from node_modules at runtime
-  serverExternalPackages: ["@electric-sql/pglite"],
   experimental: {
     agentFeedback: true,
   },
+  // The home page is the discharge list; the old route names still work.
+  redirects: () => [
+    { source: "/", destination: "/discharges", permanent: false },
+    { source: "/discharged", destination: "/discharges", permanent: true },
+    { source: "/ward", destination: "/charts", permanent: true },
+    { source: "/ward/:an/audit", destination: "/charts/:an/audit", permanent: true },
+    { source: "/ward/:an", destination: "/charts/:an/discharge-summary", permanent: true },
+  ],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

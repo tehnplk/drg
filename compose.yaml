@@ -1,0 +1,25 @@
+# PostgreSQL for PLK Chart AI (TDRG tables and the de-identified ward charts).
+# Start: docker compose up -d    Password: PG_PASSWORD in .env (git-ignored); the app connects with DATABASE_URL in .env.local.
+# Listens on localhost only. The data lives in the drg-pgdata volume; `docker compose down -v` deletes it.
+services:
+  postgres:
+    image: postgres:17
+    container_name: drg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: drg
+      POSTGRES_USER: drg
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD in .env}
+      TZ: Asia/Bangkok
+    ports:
+      - "127.0.0.1:5439:5432" # 5432-5438 are taken by other projects on this machine
+    volumes:
+      - drg-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drg -d drg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  drg-pgdata:

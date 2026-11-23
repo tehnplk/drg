@@ -9,7 +9,7 @@ This repo contains a TypeScript re-implementation of the Thai DRG 6.3 grouper th
 
 ## Run a case
 
-Run from the project root (the grouper reads `grouper/tdrg633/*.json` and `data/pglite` relative to the current directory):
+Run from the project root (the grouper reads `grouper/tdrg633/*.json` relative to the current directory and the TDRG tables from PostgreSQL, `DATABASE_URL` in `.env.local`; start it with `docker compose up -d`):
 
 ```bash
 node .agents/skills/thai-drg/scripts/group.ts '{"sex":"1","age":58,"los_day":3,"discht":"1","pdx":"J18.9","sdx":["E11.9","N17.9"],"proc":["96.04"]}'
@@ -17,7 +17,7 @@ node .agents/skills/thai-drg/scripts/group.ts '{"sex":"1","age":58,"los_day":3,"
 
 - Pass one case object or an array of cases (compare variants side by side). `@file.json` reads the cases from a file.
 - Output per case: `mdc, dc, drg, drgname, pcl, rw, adjrw, wtlos, ot, err, warn, candidates` and the warning meanings.
-- PGlite allows one process at a time. If `next dev`/`next start` is running, the script fails with a lock error. Then call the running API instead: `POST /api/drg/calculate?source=ts` with body `{"data":[case, ...]}`.
+- The running app groups the same way: `POST /api/drg/calculate?source=ts` with body `{"data":[case, ...]}`.
 
 **Input fields** (same shape as had-api): `sex` "1"/"2", `age` years, `age_day` (newborns), `los_day` (0 = stayed under 24 h), `weight` kg (required under 28 days old), `discht` 1 approval / 2 against advice / 3 escape / 4 transfer / 5 other / 8–9 dead, `pdx`, `sdx[]` (max 12), `proc[]` (max 20, ICD-9-CM, optional `+<units><setting>` extension such as `8622+21`; Appendix C combination codes like `CE002` are accepted). Dots in codes are optional.
 

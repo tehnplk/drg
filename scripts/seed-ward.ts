@@ -1,8 +1,8 @@
 // Seed the ward demo: 10 fictional inpatients due for discharge, their chart notes and an AI discharge-summary draft each.
-// usage: node scripts/seed-ward.ts   (run `npm run import-tgrp` once before; stop `next dev` first, PGlite locks its folder)
+// usage: node scripts/seed-ward.ts   (run `npm run import-tgrp` once before)
 // Every code in a draft must exist in icd10_desc / icd9_desc, and every variant must point at a code the draft has.
 import { db } from "../lib/db.ts";
-import { WARD_SCHEMA, type Draft, type Note, type Patient } from "../lib/ward.ts";
+import { RAW_TABLES, WARD_SCHEMA, type Draft, type Note, type Patient } from "../lib/ward.ts";
 
 type Seed = { patient: Patient; notes: [Note["at"], Note["kind"], string, string][]; draft: Draft };
 
@@ -493,7 +493,7 @@ async function check() {
 
 await check();
 await db.transaction(async (tx) => {
-  await tx.exec(`drop table if exists ward_draft, ward_note, ward_patient; ${WARD_SCHEMA}`);
+  await tx.exec(`drop table if exists agent_run, ward_sync, ward_audit, ward_draft, ${RAW_TABLES.join(", ")}, ward_patient; ${WARD_SCHEMA}`);
   for (const { patient, notes, draft } of SEEDS) {
     const cols = Object.keys(patient);
     await tx.query(`insert into ward_patient (${cols.join(",")}) values (${cols.map((_, i) => `$${i + 1}`).join(",")})`, Object.values(patient));

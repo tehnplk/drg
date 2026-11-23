@@ -33,8 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# PGlite data (rebuild with: node scripts/import-tgrp.ts)
-/data/
+# hm-api doc holds the API token
+/docs/hm-api.md
+
 
 # TGrp6305 binaries and TDRG 6.3.3 tables
 /grouper/

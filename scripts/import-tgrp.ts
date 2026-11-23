@@ -1,5 +1,5 @@
-// Load TGrp6305 library tables (c63*.dbf) and TDRG 6.3.3 manual tables (grouper/tdrg633/*.tsv) into PGlite.
-// usage: node scripts/import-tgrp.ts   (stop `next dev` first — PGlite locks its folder)
+// Load TGrp6305 library tables (c63*.dbf) and TDRG 6.3.3 manual tables (grouper/tdrg633/*.tsv) into PostgreSQL.
+// usage: node scripts/import-tgrp.ts   (database: docker compose up -d)
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "../lib/db.ts";

@@ -17,7 +17,7 @@ You review an inpatient chart **before** the physician writes the Discharge Summ
 ## Workflow
 
 1. **Load & scan the chart deterministically (`scan-chart.ts`, mandatory).**
-   - From HIS/PGlite by AN:
+   - By AN, from the chart imported from the HIS into PostgreSQL:
      ```bash
      node .agents/skills/chart-audit/scripts/scan-chart.ts 69-005101
      ```

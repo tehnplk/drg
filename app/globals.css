@@ -20,7 +20,38 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--color-slate-50);
   color: var(--foreground);
   font-family: var(--font-plex-thai), var(--font-geist-sans), sans-serif;
+  scrollbar-color: var(--color-slate-300) transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: var(--color-slate-950);
+    scrollbar-color: var(--color-slate-700) transparent;
+  }
+}
+
+/* Browser surfaces in the app's own colours: selected text, keyboard focus, and figures that line up in tables. */
+::selection {
+  background: var(--color-indigo-200);
+  color: var(--color-indigo-950);
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-indigo-500);
+  outline-offset: 2px;
+}
+
+.font-mono,
+td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The blinking caret after the AI progress line (components/agent-progress.tsx). */
+@keyframes caret {
+  50% {
+    border-color: transparent;
+  }
 }

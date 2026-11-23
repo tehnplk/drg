@@ -1,4 +1,4 @@
-// Ward demo end to end: ward list → Discharge → AI draft → DRG / AdjRW comparison.
+// Ward demo end to end: chart list → Discharge → AI draft → DRG / AdjRW comparison.
 // Needs the seeded demo data (npm run seed-ward); the expected DRGs are the TGrp6305 results for those cases.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
@@ -10,9 +10,10 @@ async function expectRow(row: Locator, ...texts: string[]) {
 }
 
 async function openFromWard(page: Page, name: string, an: string) {
-  await page.goto("/ward");
-  await page.getByRole("row", { name: new RegExp(name) }).getByRole("link", { name: "Discharge" }).click();
-  await expect(page).toHaveURL(new RegExp(`/ward/${an}$`));
+  await page.goto("/charts?view=all"); // seeded patients already have a draft, so they are not in the default "to do" view
+  await page.getByRole("row", { name: new RegExp(name) }).getByRole("link", { name: "เปิดชาร์ท" }).click();
+  await page.getByRole("link", { name: /D\/C Summary และ DRG/ }).click(); // no audit yet, so the case opened on its audit step
+  await expect(page).toHaveURL(new RegExp(`/charts/${an}/discharge-summary$`));
 }
 
 test("pneumonia with sepsis: physician answers and approver decisions re-group the case", async ({ page }) => {

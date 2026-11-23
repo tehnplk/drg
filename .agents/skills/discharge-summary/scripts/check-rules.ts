@@ -133,7 +133,7 @@ const allDxSet = new Set(allDx);
 const allIcd10 = [...new Set([...allDx, ...extList])];
 const procSet = new Set(procList);
 
-// Load metadata from PGlite for all referenced codes
+// Load metadata from the database for all referenced codes
 const i10DescRows = allIcd10.length
   ? (await db.query<DescRow>(`select code, "desc", valid from icd10_desc where code = any($1)`, [allIcd10])).rows
   : [];

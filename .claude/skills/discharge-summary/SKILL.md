@@ -59,7 +59,7 @@ The proposal must describe the case as the chart shows it. A higher RW is never 
 ## Scripts (run from project root)
 
 ### 1. Chart from the HIS (`chart.ts`)
-When the user gives an AN instead of pasting the case, read the chart from PGlite (imported from the HIS with `npm run import-his -- <AN>`):
+When the user gives an AN instead of pasting the case, read the chart from PostgreSQL (imported from the HIS with the import button on `/discharges` or `npm run import-his -- <AN>`):
 ```bash
 node .claude/skills/discharge-summary/scripts/chart.ts 690007722   # no AN: list imported charts
 ```
@@ -70,7 +70,7 @@ It prints the patient header (age, sex, weight, LOS, leave days, discharge statu
 node .claude/skills/discharge-summary/scripts/lookup.ts J18.9 96.04 86.22+21 V09.9 "lobar pneumonia" proc:"ventilator"
 ```
 - Accepts ICD-10 codes (flags `is_external_cause` for `V`–`Y`), ICD-9-CM codes (strips `+<units><setting>` extensions), Appendix C combo codes (`C4445`, `CE002`), and text searches across **both** `icd10_desc` and `icd9_desc` (use `dx:"..."` or `proc:"..."` to restrict scope).
-- **If Next server holds the PGlite lock**, use the running API:
+- The same lookups are on the running app's API:
   - `GET /api/libs/icd10/{code}` (returns `desc`, `valid`, `in_tgrp`, `is_external_cause`, TGrp attrs)
   - `GET /api/libs/icd-cm/{code}` (strips `+ext`, returns `desc`, `valid`, `in_tgrp`, proc attrs)
   - `GET /api/libs/icd10-search/{words}` and `GET /api/libs/icd9-search/{words}`

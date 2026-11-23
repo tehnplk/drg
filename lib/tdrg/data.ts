@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "../db.ts";
 
-// Everything the TDRG 6.3 grouper reads, loaded once from PGlite into memory.
+// Everything the TDRG 6.3 grouper reads, loaded once from PostgreSQL into memory.
 
 export type DxRow = {
   code: string; mdc: string; pdc: string; cc: boolean; maincc: string | null; sex: string; accpdx: string;

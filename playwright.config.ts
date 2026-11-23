@@ -7,5 +7,5 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 }, // first hit of a route compiles it in next dev
   use: { baseURL, channel: "chrome", launchOptions: { slowMo: Number(process.env.SLOWMO ?? 0) } }, // SLOWMO=800 npm run e2e -- --headed to watch
-  webServer: { command: "npm run dev", url: `${baseURL}/ward`, reuseExistingServer: true, timeout: 120_000 },
+  webServer: { command: "npm run dev", url: `${baseURL}/charts`, reuseExistingServer: true, timeout: 120_000 },
 });

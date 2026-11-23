@@ -51,7 +51,7 @@
 
 ## 4. Testing and rebuilding
 
-- `npm run import-tgrp`: rebuild PGlite from `grouper/` (stop the Next server first).
+- `npm run import-tgrp`: rebuild the TDRG tables in PostgreSQL from `grouper/`.
 - `npm run test-tdrg -- 20000 <seed>`: random cases, TS vs TGrp CLI; `--learn` re-derives `dc-order.json`.
 - `node scripts/test-pcl.ts`: PCL and AdjRW only.
 - `node scripts/try-cases.ts cases.json`: hand-written cases, TS vs CLI.

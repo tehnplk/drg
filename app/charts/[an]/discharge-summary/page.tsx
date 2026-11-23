@@ -2,30 +2,33 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { CaseHeader } from "@/components/case-header.tsx";
 import { db } from "@/lib/db.ts";
+import { withName } from "@/lib/pii.ts";
 import type { Draft, Note, Patient } from "@/lib/ward.ts";
 import Summary from "./summary.tsx";
 
-export const metadata: Metadata = { title: "Discharge Summary" };
+export const metadata: Metadata = { title: "D/C Summary และ DRG" };
 
-export default function DischargePage(props: PageProps<"/ward/[an]">) {
+export default function DischargeSummaryPage(props: PageProps<"/charts/[an]/discharge-summary">) {
   return (
-    <Suspense fallback={<p className="p-8 text-zinc-500">AI กำลังเตรียมร่าง discharge summary...</p>}>
+    <Suspense fallback={<p className="p-8 text-slate-500">กำลังโหลดชาร์ทและร่าง D/C Summary...</p>}>
       <Chart params={props.params} />
     </Suspense>
   );
 }
 
-async function Chart({ params }: Pick<PageProps<"/ward/[an]">, "params">) {
+async function Chart({ params }: Pick<PageProps<"/charts/[an]/discharge-summary">, "params">) {
   await connection();
   const { an } = await params;
-  const patient = (await db.query<Patient>("select * from ward_patient where an = $1", [an])).rows[0];
-  if (!patient) notFound();
+  const row = (await db.query<Patient>("select * from ward_patient where an = $1", [an])).rows[0];
+  if (!row) notFound();
+  const patient = withName(row) as Patient;
   const notes = (await db.query<Note>("select at, kind, author, body from ward_note where an = $1 order by seq", [an])).rows;
   // Charts imported from the HIS have no draft until one is written for them.
   const draft: Draft = (await db.query<{ draft: Draft }>("select draft from ward_draft where an = $1", [an])).rows[0]?.draft ?? {
     lines: [], summary: ["", "", "", "", ""], notCoded: [], variants: [],
-    alerts: [{ level: "suggest", text: "ยังไม่มีร่าง discharge summary สำหรับ AN นี้ ให้ AI ร่างด้วย skill discharge-summary" }],
+    alerts: [{ level: "suggest", text: "ยังไม่มีร่าง D/C Summary ของเคสนี้ กด \"Sum with AI\" ที่ขั้นที่ 2 ด้านบน ใช้เวลาประมาณ 1–3 นาที" }],
   };
 
   // Official names for every code the screen shows, including codes a variant would add.
@@ -40,5 +43,5 @@ async function Chart({ params }: Pick<PageProps<"/ward/[an]">, "params">) {
   );
   const names = Object.fromEntries(rows.map((r) => [r.code, r.desc]));
 
-  return <Summary patient={patient} notes={notes} draft={draft} names={names} />;
+  return <Summary patient={patient} notes={notes} draft={draft} names={names} header={<CaseHeader an={an} active="dcsum" />} />;
 }

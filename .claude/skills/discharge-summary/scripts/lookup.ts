@@ -1,4 +1,4 @@
-// Look up ICD-10 / ICD-9-CM / Appendix C procedure codes or search ICD-10 & ICD-9-CM names in the repo's PGlite tables.
+// Look up ICD-10 / ICD-9-CM / Appendix C procedure codes or search ICD-10 & ICD-9-CM names in the PostgreSQL tables.
 // Run from the project root.
 // usage:
 //   node .agents/skills/discharge-summary/scripts/lookup.ts J18.9 96.04 86.22+21 C4445 V09.9 "lobar pneumonia" "mech vent"

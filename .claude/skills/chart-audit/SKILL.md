@@ -17,7 +17,7 @@ You review an inpatient chart **before** the physician writes the Discharge Summ
 ## Workflow
 
 1. **Load & scan the chart deterministically (`scan-chart.ts`, mandatory).**
-   - From HIS/PGlite by AN:
+   - By AN, from the chart imported from the HIS into PostgreSQL:
      ```bash
      node .claude/skills/chart-audit/scripts/scan-chart.ts 69-005101
      ```
@@ -42,6 +42,11 @@ You review an inpatient chart **before** the physician writes the Discharge Summ
    - Offer clinically reasonable options including *"สาเหตุอื่น"* and *"ไม่สามารถระบุได้"*.
    - **Never include ICD codes as billing prescriptions, and never mention DRG, PCL, RW, AdjRW, or baht anywhere in this report.**
    - Avoid alert fatigue: merge related minor items so the physician sees at most 3–5 actionable questions.
+
+6. **Save the audit (imported HIS charts only).** Write the finished report to a file in the scratchpad, then save it with the readiness from step 4 (`blocking` = 🔴, `gaps` = 🟡, `ready` = 🟢) so the `/discharges` screen shows it:
+   ```bash
+   node .claude/skills/chart-audit/scripts/save-audit.ts <AN> gaps <report.md>
+   ```
 
 ## Output format
 

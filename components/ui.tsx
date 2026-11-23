@@ -67,7 +67,6 @@ export function SectionCard({ id, step, icon, tone, title, subtitle, children }:
         <header className="flex items-start gap-3">
           <IconTile icon={icon} tone={tone} size="lg" />
           <div>
-            <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">ขั้นที่ {step}</div>
             <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">{step}. {title}</h2>
             {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
           </div>

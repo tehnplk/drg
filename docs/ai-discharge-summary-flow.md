@@ -200,12 +200,12 @@ dx_name  : Acute transmural myocardial infarction of anterior wall
 | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Pre-discharge Chart Audit / CDI (ขั้น 0)                                            | ✅ มีแล้วในระดับ Skill/CLI: `chart-audit` skill (`scripts/scan-chart.ts`, `assets/audit-report.md`, `references/pre-discharge-checklist.md`) |
 | ดึงชาร์ทจาก HIS (ขั้น 2)                                                           | 🟡 มี CLI import แล้ว (`npm run import-his -- <AN>`, `scripts/import-his.ts`, `ward_patient`/`ward_note`, `scripts/chart.ts`) · รอเชื่อม real-time API |
-| ตารางรหัส ชื่อโรค และการค้นหา (ขั้น 3a-2)                                           | ✅ มีแล้ว: `icd10_desc`, `icd9_desc`, `i10`, `proc`, `ccex`, `dcl` ใน PGlite; `scripts/lookup.ts` (รองรับ ICD-10, `V–Y`, ICD-9-CM `+ext`, `Cxxxx`, ค้นชื่อทั้ง 2 ตาราง); `/api/libs/icd10\|icd-cm\|icd10-search\|icd9-search/*` |
+| ตารางรหัส ชื่อโรค และการค้นหา (ขั้น 3a-2)                                           | ✅ มีแล้ว: `icd10_desc`, `icd9_desc`, `i10`, `proc`, `ccex`, `dcl` ใน PostgreSQL (Docker, `compose.yaml`); `scripts/lookup.ts` (รองรับ ICD-10, `V–Y`, ICD-9-CM `+ext`, `Cxxxx`, ค้นชื่อทั้ง 2 ตาราง); `/api/libs/icd10\|icd-cm\|icd10-search\|icd9-search/*` |
 | Deterministic Rule Engine: Hard stop, AI-Audit 18 ข้อ, `ccex`, MRA, Grouper gaps (ขั้น 4a–4c) | ✅ มีแล้วในระดับ Skill/CLI (`scripts/check-rules.ts`) · 🟡 รอผูกเข้า Web UI/API |
 | DRG simulator (ขั้น 5, 9a)                                                          | ✅ มีแล้ว: `lib/tdrg/` (ตรงกับ TGrp6305 ~99.9%), `/api/drg/calculate`, `thai-drg` skill (หมายเหตุ: ยังไม่ได้ทำ `†/*` swap และ `O98`/`O99` swap) |
 | AI suggest / reverse-decode / ตรวจหลักฐาน (ขั้น 3a–3c, 4d)                           | ✅ มีแล้วในระดับ Agent Skill (`discharge-summary` skill 2 โหมด: Full Draft Mode + Targeted Q&A Mode, Humanizer scope, No RW optimisation) · 🟡 รอผูก backend LLM บน Web UI |
 | ตัวดึง attribute อัตโนมัติ (ขั้น 3a-3)                                              | ⬜ ต้องสร้าง (ปัจจุบันตรวจผ่าน reverse-decode check ใน skill) |
-| หน้าจอ review/approve + ลงนามอิเล็กทรอนิกส์ + audit log + e-Claim (ขั้น 6–10)        | 🟡 มีหน้าจอ Ward demo แล้ว (`app/ward/[an]/`) · ⬜ รอระบบลงนามอิเล็กทรอนิกส์, audit log (10a) และส่ง e-Claim (9b) |
+| หน้าจอ review/approve + ลงนามอิเล็กทรอนิกส์ + audit log + e-Claim (ขั้น 6–10)        | 🟡 มีหน้าจอแล้ว (`app/discharges/` รายชื่อจำหน่าย + Audit/Sum with AI, `app/charts/[an]/discharge-summary/`, `app/charts/[an]/audit/`) · ⬜ รอระบบลงนามอิเล็กทรอนิกส์, audit log (10a) และส่ง e-Claim (9b) |
 
 ### 8.2 ชุด Agent Skills ที่ซิงก์คู่กัน (`.agents/skills/` และ `.claude/skills/`)
 
@@ -215,4 +215,4 @@ dx_name  : Acute transmural myocardial infarction of anterior wall
 | **`discharge-summary`** | **ตอน/หลัง** เขียน D/C Summary | `scripts/chart.ts`, `scripts/lookup.ts`, `scripts/check-rules.ts` | Full Draft Mode (`assets/form.md`) หรือ Targeted Q&A Mode พร้อมตรวจสอบรหัส กฎ AI-Audit 18 ข้อ และ DRG variants |
 | **`thai-drg`** | คำนวณ/อธิบาย/เปรียบเทียบ TDRG 6.3 | `scripts/group.ts` | MDC, DC, DRG, PCL, RW, AdjRW, Err/Warn และบาท |
 
-**ลำดับงานถัดไปบน Web App:** นำตรรกะของ `scan-chart.ts` และ `check-rules.ts` ยกเป็น shared module ใต้ `lib/` เพื่อเรียกใช้ได้ทั้งจาก Agent Skills และจากหน้าจอ `app/ward/[an]/` (ปุ่ม Pre-discharge Audit + ตรวจกฎก่อนลงนาม) จากนั้นเพิ่ม audit log (10a) และระบบลงนามอิเล็กทรอนิกส์
+**ลำดับงานถัดไปบน Web App:** นำตรรกะของ `scan-chart.ts` และ `check-rules.ts` ยกเป็น shared module ใต้ `lib/` เพื่อเรียกใช้ได้ทั้งจาก Agent Skills และจากหน้าจอ `app/charts/[an]/discharge-summary/` (ตรวจกฎก่อนลงนาม) จากนั้นเพิ่ม audit log (10a) และระบบลงนามอิเล็กทรอนิกส์
