@@ -519,7 +519,18 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
             </div>
 
             <div className="grid gap-2">
-              <SubHeading icon={MessageCircleQuestion}>คำถามถึงแพทย์ / สิ่งที่ต้องอนุมัติ</SubHeading>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <SubHeading icon={MessageCircleQuestion}>คำถามถึงแพทย์ / สิ่งที่ต้องอนุมัติ</SubHeading>
+                {!decideLines && version != null && draft.variants.some((v, i) => v.question && !answer(i)) && (
+                  <a
+                    href={`/charts/${p.an}/query/letter${by ? `?by=${encodeURIComponent(by)}` : ""}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 dark:text-indigo-300 dark:ring-indigo-500/30 dark:hover:bg-indigo-500/10"
+                  >
+                    <FileText className="size-3.5" /> สร้างใบ Query ถึงแพทย์
+                  </a>
+                )}
+              </div>
               {draft.variants.some((v) => v.question) ? (
                 <ol className="grid gap-3">
                   {draft.variants.map((v, i) => v.question && (

@@ -39,7 +39,7 @@ function Submit({ again, compact }: { again: boolean; compact: boolean }) {
   return (
     <button
       disabled={pending}
-      title={again ? "ดึงข้อมูลดิบจาก HIS มาแทนของเดิม ร่าง D/C และผล audit ยังอยู่" : "นำเข้าชาร์ทจาก HIS แล้วไปหน้า Audit ของเคสนี้"}
+      title={again ? "ดึงข้อมูลดิบจาก HIS มาแทนของเดิม ผล Pre-coding + Query และร่างรหัสยังอยู่" : "นำเข้าชาร์ทจาก HIS แล้วไปหน้า Pre-coding + Query ของเคสนี้"}
       className={
         again
           ? "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 font-medium whitespace-nowrap text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 disabled:opacity-60 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800"
@@ -47,7 +47,7 @@ function Submit({ again, compact }: { again: boolean; compact: boolean }) {
       }
     >
       <Icon className={`size-4 ${pending ? "animate-spin" : ""}`} />
-      {pending ? (again ? "กำลัง Re-Sync..." : "กำลังนำเข้า...") : again ? (compact ? "Re-Sync" : "Re-Sync จาก HIS") : "นำเข้า AI Sum"}
+      {pending ? (again ? "กำลัง Re-Sync..." : "กำลังนำเข้า...") : again ? (compact ? "Re-Sync" : "Re-Sync จาก HIS") : "นำเข้า"}
     </button>
   );
 }

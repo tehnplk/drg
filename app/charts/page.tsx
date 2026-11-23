@@ -56,7 +56,7 @@ async function PatientList({ searchParams }: Pick<PageProps<"/charts">, "searchP
   if (!rows.length)
     return (
       <p className="rounded-xl bg-amber-50 p-4 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-        ยังไม่มีชาร์ทที่นำเข้า ไปที่ <Link href="/discharges" className="font-medium underline">รายการผู้ป่วยใน HIS</Link> แล้วกด &quot;นำเข้า AI Sum&quot;
+        ยังไม่มีชาร์ทที่นำเข้า ไปที่ <Link href="/discharges" className="font-medium underline">รายการผู้ป่วยใน HIS</Link> แล้วกด &quot;นำเข้า&quot;
       </p>
     );
 

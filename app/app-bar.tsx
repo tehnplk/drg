@@ -36,7 +36,7 @@ function ActiveNavLinks() {
 
 export default function AppBar() {
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
+    <header className="sticky top-0 z-20 print:hidden border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
       <div className="mx-auto flex h-16 w-full max-w-[96rem] items-center gap-4 px-4 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5">
           <span className="grid size-9 place-items-center rounded-xl bg-indigo-600 text-white">

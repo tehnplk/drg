@@ -56,7 +56,7 @@ export function Approve({ an, version, latest, missing, final, attending }: {
     </div>
   );
 
-  if (version == null) return <p className="text-sm text-slate-400">ยังไม่มีร่างให้อนุมัติ กด &ldquo;Sum with AI&rdquo; ก่อน</p>;
+  if (version == null) return <p className="text-sm text-slate-400">ยังไม่มีร่างให้อนุมัติ กด &ldquo;Complete with AI&rdquo; ก่อน</p>;
   if (!latest) return <p className="text-sm text-slate-500">นี่คือร่างรุ่นเก่าจากประวัติ ดูได้อย่างเดียว อนุมัติได้เฉพาะร่างรุ่นล่าสุด</p>;
 
   const ready = !missing.length && !!by;
