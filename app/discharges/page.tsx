@@ -80,7 +80,7 @@ async function DischargedList({ searchParams }: Pick<PageProps<"/discharges">, "
           </h2>
           <span className="text-sm text-slate-500">
             ทั้งหมด {his.length} ราย · ยังไม่นำเข้า {his.length - local.size} ราย · นำเข้าแล้ว {local.size} ราย
-            {local.size > 0 && <> (ทำงานต่อที่ <Link href="/charts" className="text-indigo-600 hover:underline dark:text-indigo-300">ขั้นที่ 2</Link>)</>}
+            {local.size > 0 && <> (ทำงานต่อที่ <Link href="/charts" className="text-indigo-600 hover:underline dark:text-indigo-300">รายการผู้ป่วยรอทำ D/C Sum</Link>)</>}
           </span>
           {his.length === MAX_DISCHARGED && (
             <span className="text-sm text-amber-700 dark:text-amber-300">แสดงแค่ {MAX_DISCHARGED} รายแรก ให้แคบช่วงวันที่ลง</span>
