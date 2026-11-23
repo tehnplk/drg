@@ -1,7 +1,8 @@
 "use client";
 
-import { Calculator as CalculatorIcon, LoaderCircle } from "lucide-react";
+import { Calculator as CalculatorIcon, LoaderCircle, Plus, X } from "lucide-react";
 import { useState } from "react";
+import { MAX_SDX } from "@/lib/ward.ts";
 
 const API = "/api";
 
@@ -55,9 +56,66 @@ type Result = Grouped & {
   codes: { code: string; kind: string; name: string }[];
 };
 
-// "J18.9, e11.9 N179" -> ["J189", "E119", "N179"]
-const codes = (s: string) =>
-  s.toUpperCase().replace(/\./g, "").split(/[\s,;]+/).filter(Boolean);
+// One code as typed -> as the grouper takes it: " j18.9 " -> "J189"
+const norm = (s: string) => s.toUpperCase().replace(/[.\s]/g, "");
+const MAX_PROC = 20;
+
+// A list of codes side by side, wrapping: "+" at the end adds one (or Enter in the last box), × removes one.
+function CodeList({ title, hint: note, placeholder, max, values, onChange }: {
+  title: string; hint: string; placeholder: string; max: number; values: string[]; onChange: (v: string[]) => void;
+}) {
+  const [focus, setFocus] = useState(-1); // the row just added gets the cursor
+  const add = () => {
+    if (values.length >= max) return;
+    onChange([...values, ""]);
+    setFocus(values.length);
+  };
+  return (
+    <fieldset className={label}>
+      <legend>{title}</legend>
+      <ol className="mt-1 flex flex-wrap items-center gap-2">
+        {values.map((v, i) => (
+          <li key={i} className="flex items-center rounded-xl border border-slate-300 bg-white pl-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900">
+            <span className="text-xs text-slate-400 tabular-nums">{i + 1}.</span>
+            <input
+              aria-label={`${title} รายการที่ ${i + 1}`}
+              placeholder={i ? "" : placeholder}
+              size={8}
+              className="w-24 bg-transparent px-1.5 py-2 font-mono text-sm text-slate-900 uppercase outline-none placeholder:font-sans placeholder:normal-case dark:text-slate-100"
+              value={v}
+              autoFocus={i === focus}
+              onChange={(e) => onChange(values.map((x, j) => (j === i ? e.target.value : x)))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && i === values.length - 1 && v.trim()) { e.preventDefault(); add(); }
+              }}
+            />
+            <button
+              type="button"
+              aria-label={`ลบ${title}รายการที่ ${i + 1}`}
+              onClick={() => onChange(values.length > 1 ? values.filter((_, j) => j !== i) : [""])}
+              className="grid size-8 shrink-0 place-items-center rounded-r-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10"
+            >
+              <X className="size-3.5" />
+            </button>
+          </li>
+        ))}
+        <li>
+          <button
+            type="button"
+            onClick={add}
+            disabled={values.length >= max}
+            aria-label={`เพิ่ม${title}`}
+            title="เพิ่มรายการ (หรือกด Enter ในช่องสุดท้าย)"
+            className="grid size-9 place-items-center rounded-xl text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 disabled:opacity-50 dark:text-indigo-300 dark:ring-indigo-500/30 dark:hover:bg-indigo-500/10"
+          >
+            <Plus className="size-4" />
+          </button>
+        </li>
+      </ol>
+      <span className={hint}>{note}</span>
+    </fieldset>
+  );
+}
 
 async function lookup(path: string): Promise<Record<string, string>[]> {
   const r = await fetch(`${API}/libs/${path}`);
@@ -81,9 +139,9 @@ export default function Calculator() {
     los: "1",
     dc: "21",
     pdx: "",
-    sdx: "",
-    proc: "",
   });
+  const [sdxList, setSdxList] = useState([""]);
+  const [procList, setProcList] = useState([""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -96,9 +154,9 @@ export default function Calculator() {
     setLoading(true);
     setError("");
     setResult(null);
-    const pdx = codes(f.pdx)[0] ?? "";
-    const sdx = codes(f.sdx).slice(0, 10);
-    const proc = codes(f.proc).slice(0, 20);
+    const pdx = norm(f.pdx);
+    const sdx = sdxList.map(norm).filter(Boolean).slice(0, MAX_SDX);
+    const proc = procList.map(norm).filter(Boolean).slice(0, MAX_PROC);
     try {
       const r = await fetch(`${API}/drg/calculate`, {
         method: "POST",
@@ -225,16 +283,14 @@ export default function Calculator() {
                 PDx (ICD-10)
                 <input required placeholder="เช่น J18.9" className={codeInput} value={f.pdx} onChange={set("pdx")} />
               </label>
-              <label className={label}>
-                SDx (ICD-10)
-                <input placeholder="เช่น E11.9, N17.9" className={codeInput} value={f.sdx} onChange={set("sdx")} />
-                <span className={hint}>คั่นด้วยเว้นวรรคหรือจุลภาค สูงสุด 10 รหัส จุดในรหัสใส่หรือไม่ใส่ก็ได้</span>
-              </label>
-              <label className={label}>
-                Procedure (ICD-9-CM)
-                <input placeholder="เช่น 96.04" className={codeInput} value={f.proc} onChange={set("proc")} />
-                <span className={hint}>สูงสุด 20 รหัส</span>
-              </label>
+              <CodeList
+                title="SDx (ICD-10)" placeholder="เช่น E11.9" max={MAX_SDX} values={sdxList} onChange={setSdxList}
+                hint={`รายการละ 1 รหัส สูงสุด ${MAX_SDX} รหัส จุดในรหัสใส่หรือไม่ใส่ก็ได้`}
+              />
+              <CodeList
+                title="Procedure (ICD-9-CM)" placeholder="เช่น 96.04" max={MAX_PROC} values={procList} onChange={setProcList}
+                hint={`รายการละ 1 รหัส สูงสุด ${MAX_PROC} รหัส`}
+              />
             </fieldset>
 
             <button
