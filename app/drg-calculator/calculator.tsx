@@ -131,7 +131,6 @@ const hint = "mt-1 block text-xs font-normal text-slate-500";
 
 export default function Calculator() {
   const [f, setF] = useState({
-    hcode: "",
     sex: "1",
     age: "15",
     ageDay: "0",
@@ -165,7 +164,6 @@ export default function Calculator() {
           version: "6",
           data: [
             {
-              hcode: f.hcode,
               hn: "",
               an: "1",
               sex: Number(f.sex),
@@ -261,11 +259,6 @@ export default function Calculator() {
                 LOS (วัน)
                 <input type="number" min={0} required className={input} value={f.los} onChange={set("los")} />
                 <span className={hint}>หักวันลากลับบ้านแล้ว</span>
-              </label>
-              <label className={label}>
-                HCode
-                <input className={input} value={f.hcode} onChange={set("hcode")} />
-                <span className={hint}>ไม่บังคับ</span>
               </label>
               <label className={`${label} sm:col-span-3`}>
                 D/C Status
