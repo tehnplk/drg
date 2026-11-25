@@ -1,4 +1,4 @@
-import { CalendarCheck, Search, WifiOff } from "lucide-react";
+import { CalendarCheck, WifiOff } from "lucide-react";
 import type { Metadata } from "next";
 import Form from "next/form";
 import { connection } from "next/server";
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "รายการผู้ป่ว
 export default function DischargesPage(props: PageProps<"/discharges">) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <main className="mx-auto grid w-full max-w-[96rem] gap-6 p-4 sm:p-8">
+      <main className="grid w-full gap-6 p-4 sm:p-8">
         <header className="flex items-center gap-4">
           <IconTile icon={CalendarCheck} tone="indigo" size="lg" />
           <div>
@@ -45,12 +45,9 @@ async function DischargedList({ searchParams }: Pick<PageProps<"/discharges">, "
   const picker = (
     <Form action="/discharges" key={`${from}|${to}`} className={`flex flex-wrap items-center gap-3 p-4 ${card}`}>
       <span className="text-sm font-medium text-slate-700 dark:text-slate-200">วันที่จำหน่าย</span>
-      <ThaiDatePicker name="from" label="ตั้งแต่วันที่จำหน่าย" defaultValue={from} max={today} />
+      <ThaiDatePicker name="from" label="ตั้งแต่วันที่จำหน่าย" defaultValue={from} max={today} autoSubmit />
       <span className="text-sm text-slate-500">ถึง</span>
-      <ThaiDatePicker name="to" label="ถึงวันที่จำหน่าย" defaultValue={to} max={today} />
-      <button className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-        <Search className="size-4" /> แสดงรายชื่อ
-      </button>
+      <ThaiDatePicker name="to" label="ถึงวันที่จำหน่าย" defaultValue={to} max={today} autoSubmit />
     </Form>
   );
 

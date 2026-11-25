@@ -12,6 +12,7 @@ import {
 type Props = {
   label: string; // accessible name of the field and its calendar
   name?: string; // set: submits the date with its form through a hidden input
+  autoSubmit?: boolean; // submit the form as soon as a date is picked
   value?: string; // controlled
   defaultValue?: string; // uncontrolled
   onChange?: (date: string) => void;
@@ -23,7 +24,7 @@ type Props = {
 
 const field = "rounded-xl border border-slate-300 bg-white text-sm dark:border-slate-700 dark:bg-slate-900";
 
-export function ThaiDatePicker({ label, name, value, defaultValue = "", onChange, min, max, placeholder = "เลือกวันที่", className = "" }: Props) {
+export function ThaiDatePicker({ label, name, autoSubmit, value, defaultValue = "", onChange, min, max, placeholder = "เลือกวันที่", className = "" }: Props) {
   const [inner, setInner] = useState(defaultValue);
   const current = value ?? inner;
   const [open, setOpen] = useState(false);
@@ -35,8 +36,17 @@ export function ThaiDatePicker({ label, name, value, defaultValue = "", onChange
   const inRange = (d: string) => (!min || d >= min) && (!max || d <= max);
   const clamp = (d: string) => (min && d < min ? min : max && d > max ? max : d);
 
+  // Submitted after the render that puts the new date in the hidden input.
+  const submit = useRef(false);
+  useEffect(() => {
+    if (!submit.current) return;
+    submit.current = false;
+    root.current?.closest("form")?.requestSubmit();
+  }, [current]);
+
   const pick = (d: string) => {
     if (!inRange(d)) return;
+    submit.current = !!autoSubmit && d !== current;
     if (value === undefined) setInner(d);
     onChange?.(d);
     setOpen(false);
