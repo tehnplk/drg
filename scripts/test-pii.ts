@@ -1,7 +1,14 @@
 // node scripts/test-pii.ts
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { decrypt, encrypt } from "../lib/pii.ts";
+import { decrypt, encrypt, maskSurname } from "../lib/pii.ts";
+
+assert.equal(maskSurname("พญ.นฤมล พงษ์สวัสดิ์"), "พญ.นฤมล ***");
+assert.equal(maskSurname("พญ.ชื่อ สกุล ว12345"), "พญ.ชื่อ *** ว12345", "keeps the licence number");
+assert.equal(maskSurname("นพ. สมชาย ใจดี"), "นพ. สมชาย ***", "a space after the title keeps the first name");
+assert.equal(maskSurname("นางสาวสมหญิง ใจดี มีสุข"), "นางสาวสมหญิง ***");
+assert.equal(maskSurname("นพ.ก."), "นพ.ก.");
+assert.equal(maskSurname("nurse01"), "nurse01");
 
 process.env.PII_KEY = randomBytes(32).toString("base64");
 

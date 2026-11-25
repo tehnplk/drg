@@ -90,7 +90,7 @@ export async function dischargedBetween(from: string, to: string): Promise<Disch
   return rows.map((v) => {
     const admit_at = min(v.admitDate);
     return {
-      an: v.an!, hn: v.hn!, name: `${v.title ?? ""}${v.fname ?? ""} ${v.lname ?? ""}`.trim(),
+      an: v.an!, hn: v.hn!, name: `${v.title ?? ""}${v.fname ?? ""}${v.lname ? " ***" : ""}`.trim(), // surname hidden on screen
       sex: v.sex === "ชาย" ? "1" : "2", ...ageAt(v.birthday, admit_at),
       admit_at, discharge_at: min(v.dischargeDatetime), leave_days: Number(v.totalLeaveDay) || 0, pdx_text: v.pdx_text,
     };

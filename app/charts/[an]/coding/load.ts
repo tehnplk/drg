@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { staffWords } from "@/lib/agent.ts";
 import { finalOf, reviewsOf, versionsOf, type AgentKind } from "@/lib/charts.ts";
 import { db } from "@/lib/db.ts";
-import { withName } from "@/lib/pii.ts";
+import { maskSurname, withName } from "@/lib/pii.ts";
 import { hisLines, type Draft, type HisDx, type Note, type Patient } from "@/lib/ward.ts";
 
 const LATEST = {
@@ -20,8 +20,9 @@ const EMPTY = {
 export async function loadCase(an: string, kind: AgentKind, v: unknown) {
   const row = (await db.query<Patient>("select * from ward_patient where an = $1", [an])).rows[0];
   if (!row) notFound();
-  const patient = withName(row) as Patient;
-  const notes = (await db.query<Note>("select at, kind, author, body from ward_note where an = $1 order by seq", [an])).rows;
+  const patient = { ...withName(row), attending: maskSurname(row.attending) } as Patient;
+  const notes = (await db.query<Note>("select at, kind, author, body from ward_note where an = $1 order by seq", [an])).rows
+    .map((n) => ({ ...n, author: maskSurname(n.author) }));
   // The latest result, or an older version from the history (?v=<id>, read only). None until the AI made one.
   const current = (await db.query<{ draft: Draft; version: number | null }>(LATEST[kind], [an])).rows[0];
   const id = Number(v);

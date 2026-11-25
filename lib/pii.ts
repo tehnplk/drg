@@ -18,11 +18,15 @@ export function encrypt(plain: string | null): string | null {
   return `v1:${Buffer.concat([iv, c.getAuthTag(), body]).toString("base64")}`;
 }
 
-// A ward_patient row as screens should get it: the decrypted full name in `name` and no *_enc columns.
-// Demo patients (no encrypted name) keep their `name`.
+// Screens show a staff member's surname as ***: "พญ.นฤมล พงษ์สวัสดิ์ ว12345" -> "พญ.นฤมล *** ว12345".
+// A single word (a username, "นพ.ก.") stays as it is.
+export const maskSurname = (name: string) => name.trim().replace(/^((?:\S+\.\s*)?\S+)\s+.+?(\s+ว\.?\s*\d+)?$/, "$1 ***$2");
+
+// A ward_patient row as screens should get it: the decrypted first name and *** for the surname in `name`, and no
+// *_enc columns. Demo patients (no encrypted name) keep their `name`.
 export function withName<T extends { name: string }>(row: T): Omit<T, `${string}_enc`> {
   const r = row as T & Record<string, string | null>;
-  const full = [decrypt(r.fname_enc ?? null), decrypt(r.lname_enc ?? null)].filter(Boolean).join(" ");
+  const full = [decrypt(r.fname_enc ?? null), r.lname_enc ? "***" : null].filter(Boolean).join(" ");
   return Object.fromEntries(Object.entries({ ...row, name: full || row.name }).filter(([k]) => !k.endsWith("_enc"))) as Omit<T, `${string}_enc`>;
 }
 
