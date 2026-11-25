@@ -70,20 +70,19 @@ export async function CaseHeader({ an, active }: { an: string; active: AgentKind
         {tabs.map((t) => {
           const current = t.key === active;
           return (
-            <div key={t.key} className={`flex flex-wrap items-center gap-3 rounded-xl p-3 ring-1 ${current ? "bg-indigo-50 ring-indigo-300 dark:bg-indigo-500/10 dark:ring-indigo-500/40" : "ring-slate-200 dark:ring-slate-700"}`}>
-              <Link href={t.href} aria-current={current ? "page" : undefined} className="group flex min-w-0 flex-1 items-center gap-3">
-                <span className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-semibold ${current ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>{t.n}</span>
-                <span className="min-w-0">
-                  <span className={`flex items-center gap-1.5 font-semibold ${current ? "text-indigo-800 dark:text-indigo-200" : "text-slate-800 group-hover:text-indigo-700 dark:text-slate-100"}`}>
-                    <t.icon className="size-4" /> {t.label}
-                  </span>
-                  <span className="mt-1 block">{t.status}</span>
+            <div key={t.key} className={`relative flex flex-col items-start gap-2 rounded-xl p-4 ring-1 ${current ? "bg-indigo-50 ring-indigo-300 dark:bg-indigo-500/10 dark:ring-indigo-500/40" : "ring-slate-200 dark:ring-slate-700"}`}>
+              <span className={`absolute top-3 right-3 rounded-full px-2 py-0.5 text-xs font-semibold tracking-wide ${current ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>STEP {t.n}</span>
+              <Link href={t.href} aria-current={current ? "page" : undefined} className="group grid gap-2 pr-16">
+                <span className={`flex items-center gap-1.5 font-semibold ${current ? "text-indigo-800 dark:text-indigo-200" : "text-slate-800 group-hover:text-indigo-700 dark:text-slate-100"}`}>
+                  <t.icon className="size-4 shrink-0" /> {t.label}
                 </span>
+                <span className="flex flex-wrap gap-1">{t.status}</span>
               </Link>
               {t.key !== "drg" && (
-                <div className="flex flex-col items-end">
+                <div className="mt-auto grid gap-1 self-stretch">
                   <AgentButton kind={t.key} an={an} again={t.done} running={run(t.key)?.status === "running"} />
-                  <RunNote run={run(t.key)} />
+                  {/* a failed run; a running one shows its progress in the button row */}
+                  {run(t.key)?.status !== "running" && <div className="flex justify-end text-right"><RunNote run={run(t.key)} /></div>}
                 </div>
               )}
             </div>
