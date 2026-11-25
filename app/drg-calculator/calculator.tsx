@@ -215,7 +215,7 @@ export default function Calculator() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <main className="mx-auto grid w-full max-w-[96rem] content-start gap-6 p-4 sm:p-8">
+      <main className="grid w-full content-start gap-6 p-4 sm:p-8">
         <header className="flex items-center gap-4">
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
             <CalculatorIcon className="size-6" />

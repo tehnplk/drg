@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "รายการรอให้ร
 export default function ChartsPage(props: PageProps<"/charts">) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <main className="mx-auto grid w-full max-w-[96rem] content-start gap-6 p-4 sm:p-8">
+      <main className="grid w-full content-start gap-6 p-4 sm:p-8">
         <header className="flex items-center gap-4">
           <IconTile icon={BedDouble} tone="indigo" size="lg" />
           <div>

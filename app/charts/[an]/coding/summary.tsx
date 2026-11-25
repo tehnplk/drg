@@ -204,7 +204,7 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <main
         style={splitColumns(notesShare)}
-        className="mx-auto grid w-full max-w-[120rem] gap-6 p-4 sm:p-8 lg:grid-cols-[var(--split-cols)] lg:gap-x-2"
+        className="grid w-full gap-6 p-4 sm:p-8 lg:grid-cols-[var(--split-cols)] lg:gap-x-2"
       >
         <div className="min-w-0 lg:col-span-3">{header}</div>
 
@@ -404,8 +404,8 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
               <SubHeading icon={Ban}>ไม่เสนอให้ลงรหัส</SubHeading>
               {draft.notCoded.length ? (
                 <ul className="grid gap-2 sm:grid-cols-2">
-                  {draft.notCoded.map((n) => (
-                    <li key={n.code} className="flex gap-3 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800/50">
+                  {draft.notCoded.map((n, i) => (
+                    <li key={i}className="flex gap-3 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800/50">
                       <Ban className="mt-0.5 size-4 shrink-0 text-slate-400" />
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
