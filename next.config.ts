@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // A temporary Cloudflare quick tunnel (cloudflared tunnel --url http://localhost:3000), password-gated in proxy.ts
+  allowedDevOrigins: ["*.trycloudflare.com"],
   experimental: {
     agentFeedback: true,
+    serverActions: { allowedOrigins: ["*.trycloudflare.com"] },
   },
   // The home page is the discharge list; the old route names still work.
   redirects: () => [
