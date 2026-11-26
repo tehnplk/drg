@@ -21,13 +21,14 @@ import { Approve } from "./approve.tsx";
 import { NoteTimeline } from "./timeline.tsx";
 import { Chip, IconTile, SectionCard, SubHeading, TONES, card, type Tone } from "@/components/ui.tsx";
 
-const STATUS: Record<Status, { label: string; icon: LucideIcon; tone: Tone }> = {
-  exact: { label: "Exact", icon: CircleCheck, tone: "emerald" },
-  less: { label: "Less specific", icon: CircleArrowDown, tone: "sky" },
-  more: { label: "More specific", icon: CircleArrowUp, tone: "amber" },
-  partial: { label: "Partial", icon: CircleDashed, tone: "amber" },
-  mismatch: { label: "Mismatch", icon: CircleX, tone: "rose" },
-  ambiguous: { label: "Ambiguous", icon: CircleHelp, tone: "violet" },
+// The reverse-decode check: read only dx_name and ask whether it gives back what the physician wrote in dx_text.
+const STATUS: Record<Status, { label: string; icon: LucideIcon; tone: Tone; hint: string }> = {
+  exact: { label: "Exact", icon: CircleCheck, tone: "emerald", hint: "รหัสตรงกับที่แพทย์เขียนทุกแง่" },
+  less: { label: "Less specific", icon: CircleArrowDown, tone: "sky", hint: "รหัสกว้างกว่าที่แพทย์เขียน รายละเอียดบางส่วนหายไป" },
+  more: { label: "More specific", icon: CircleArrowUp, tone: "amber", hint: "รหัสละเอียดกว่าที่แพทย์เขียน เสี่ยงตอน audit" },
+  partial: { label: "Partial", icon: CircleDashed, tone: "amber", hint: "ตรงบางส่วน หรือหลักฐานในชาร์ทยังไม่ครบ" },
+  mismatch: { label: "Mismatch", icon: CircleX, tone: "rose", hint: "รหัสไม่ตรงกับที่แพทย์เขียน ต้องแก้" },
+  ambiguous: { label: "Ambiguous", icon: CircleHelp, tone: "violet", hint: "คำของแพทย์ตีความได้หลายทาง ควรถามแพทย์" },
 };
 
 const LEVELS: { level: Draft["alerts"][number]["level"]; label: string; icon: LucideIcon; tone: Tone }[] = [
@@ -374,7 +375,10 @@ export default function Summary({ patient: p, notes, draft, names, header, versi
                         <td className={td}>{l.text}</td>
                         <td className={`${td} font-mono font-semibold`}>{l.code}</td>
                         <td className={td}>{nameOf(l.code)}</td>
-                        <td className={td}><Chip tone={s.tone} icon={s.icon}>{s.label}</Chip></td>
+                        <td className={td}>
+                          <Chip tone={s.tone} icon={s.icon}>{s.label}</Chip>
+                          <div className="mt-1 max-w-40 text-[11px] leading-snug text-slate-400 dark:text-slate-500">{s.hint}</div>
+                        </td>
                         <td className={`${td} text-xs text-slate-500`}>{l.evidence}</td>
                         {decideLines && <td className={td}>
                           <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
