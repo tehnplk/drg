@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { nowBkk, runDraft } from "@/lib/agent.ts";
 import { latestRuns, reviewsOf, type AgentKind } from "@/lib/charts.ts";
 import { db } from "@/lib/db.ts";
@@ -44,7 +45,9 @@ export async function importCharts(_: unknown, form: FormData) {
   return { ok: ans.length - failed.length, failed };
 }
 
-// Runs for a minute or two; the outcome (or the error) is kept in agent_run and shown on the list.
+// A run takes a minute or two, longer than a request may stay open (Cloudflare cuts it at 100 s), so this answers
+// as soon as the run is marked running and the run goes on after the response. The page polls the run's progress
+// (components/agent-progress.tsx) and refreshes itself when it ends; the outcome (or the error) is kept in agent_run.
 export async function runAgent(kind: AgentKind, an: string) {
   checkAn(an);
   if (kind !== "precode" && kind !== "dcsum") throw new Error(`ขั้นตอนไม่ถูกต้อง: ${kind}`);
@@ -53,11 +56,10 @@ export async function runAgent(kind: AgentKind, an: string) {
     refresh();
     return;
   }
-  try {
-    await runDraft(an, kind);
-  } catch {
-    // already recorded in agent_run; the list shows it
-  }
+  const started = Promise.withResolvers<void>();
+  const run = runDraft(an, kind, started.resolve).then(() => {}, () => {}); // errors are already recorded in agent_run
+  after(() => run);
+  await Promise.race([started.promise, run]); // run settles first when it fails before it starts
   refresh();
 }
 

@@ -248,12 +248,14 @@ export const nowBkk = () =>new Date(Date.now() + 7 * 3600_000).toISOString().sli
 
 // One agent_run row per run. model = the model that produced the result; on a fallback, error keeps why the
 // earlier model failed (a done run's error is not shown as a failure).
-async function agentRun<T>(an: string, kind: AgentKind, go: (m: Model, trace: Step[], say: Say) => Promise<{ value: T; steps: number; usage: unknown }>) {
+// onStart: called once the run's row says running, so a caller can answer the click without waiting for the result.
+async function agentRun<T>(an: string, kind: AgentKind, go: (m: Model, trace: Step[], say: Say) => Promise<{ value: T; steps: number; usage: unknown }>, onStart?: () => void) {
   await db.exec(WARD_SCHEMA);
   const { rows } = await db.query<{ id: number }>(
     "insert into agent_run (an, kind, status, model, started_at, progress) values ($1, $2, 'running', $3, $4, 'กำลังอ่านคำสั่งของ skill') returning id",
     [an, kind, MODELS[0].id, nowBkk()]);
   const id = rows[0].id;
+  onStart?.();
   // A progress line is only for the screen: a failed write must not fail the run.
   const say: Say = (progress) => db.query("update agent_run set progress = $2 where id = $1", [id, progress]).then(() => {}, () => {});
   const failed: string[] = [];
@@ -376,7 +378,7 @@ function withAnswers(his: HisDx[], confirmed: Change[]): HisDx[] {
   ];
 }
 
-export async function runDraft(an: string, kind: AgentKind): Promise<Draft> {
+export async function runDraft(an: string, kind: AgentKind, onStart?: () => void): Promise<Draft> {
   const hash = await syncHash(an);
   const step = STEP[kind];
   const answers = kind === "dcsum" ? await queryAnswers(an) : { text: "", confirmed: [] };
@@ -406,5 +408,5 @@ export async function runDraft(an: string, kind: AgentKind): Promise<Draft> {
 
     await saveVersion(an, kind, draft, m.id, hash);
     return { value: draft, steps: r.steps.length, usage: r.totalUsage };
-  });
+  }, onStart);
 }
